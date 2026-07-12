@@ -200,6 +200,18 @@ struct BundlesTabView: View {
         }
     }
 
+    private func deleteBundle(_ bundle: MushafBundle) async {
+        if let serverID = bundle.serverID, !bundle.isShared {
+            do {
+                try await RemoteBundleService().deleteBundle(serverID: serverID)
+            } catch {
+                syncError = error.localizedDescription
+                return
+            }
+        }
+        bundleStore.deleteBundle(id: bundle.id)
+    }
+
     private func acceptShare(_ share: BundleShareDTO) async {
         do {
             let accepted = try await RemoteBundleService().acceptShare(id: share.id)

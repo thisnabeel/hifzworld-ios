@@ -31,6 +31,9 @@ struct RemoteMushafBundle: Codable, Identifiable, Hashable {
     let pageNumbers: [Int]
     let mushafID: Int
     let role: String?
+    let collaboratorUserID: UUID?
+    let collaboratorName: String?
+    let shareStatus: String?
     let createdAt: Date?
     let updatedAt: Date?
 
@@ -39,6 +42,9 @@ struct RemoteMushafBundle: Codable, Identifiable, Hashable {
         case ownerID = "owner_id"
         case pageNumbers = "page_numbers"
         case mushafID = "mushaf_id"
+        case collaboratorUserID = "collaborator_user_id"
+        case collaboratorName = "collaborator_name"
+        case shareStatus = "share_status"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

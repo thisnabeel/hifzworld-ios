@@ -15,8 +15,12 @@ struct HifzworldAPIClient: Sendable {
 
     static let shared = HifzworldAPIClient()
 
-    func get<T: Decodable>(_ path: String, authorized: Bool = true) async throws -> T {
-        try await request(path: path, method: "GET", body: Optional<Data>.none, authorized: authorized)
+    func get<T: Decodable>(
+        _ path: String,
+        query: [URLQueryItem] = [],
+        authorized: Bool = true
+    ) async throws -> T {
+        try await request(path: path, method: "GET", query: query, body: nil, authorized: authorized)
     }
 
     func post<T: Decodable, B: Encodable>(_ path: String, body: B, authorized: Bool = true) async throws -> T {
@@ -32,24 +36,38 @@ struct HifzworldAPIClient: Sendable {
         try await request(path: path, method: "PATCH", body: Data(), authorized: authorized)
     }
 
+    func patch<T: Decodable, B: Encodable>(_ path: String, body: B, authorized: Bool = true) async throws -> T {
+        let data = try encoder.encode(body)
+        return try await request(path: path, method: "PATCH", body: data, authorized: authorized)
+    }
+
     func delete(_ path: String, authorized: Bool = true) async throws {
-        var request = URLRequest(url: HifzworldAPIConfig.baseURL.appendingPathComponent(path))
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if authorized, let token = KeychainTokenStore.load() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let _: EmptyResponse = try await request(path: path, method: "DELETE", body: nil, authorized: authorized)
+    }
+
+    private func makeURL(path: String, query: [URLQueryItem]) throws -> URL {
+        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        guard var components = URLComponents(string: HifzworldAPIConfig.baseURLString) else {
+            throw APIError.invalidURL
         }
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        let basePath = (components.path as NSString).appendingPathComponent(trimmed)
+        components.path = basePath.hasPrefix("/") ? basePath : "/" + basePath
+        if !query.isEmpty {
+            components.queryItems = query
+        }
+        guard let url = components.url else { throw APIError.invalidURL }
+        return url
     }
 
     private func request<T: Decodable>(
         path: String,
         method: String,
+        query: [URLQueryItem] = [],
         body: Data?,
         authorized: Bool
     ) async throws -> T {
-        var request = URLRequest(url: HifzworldAPIConfig.baseURL.appendingPathComponent(path))
+        let url = try makeURL(path: path, query: query)
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

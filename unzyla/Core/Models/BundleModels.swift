@@ -10,6 +10,7 @@ struct MushafBundle: Identifiable, Codable, Hashable {
     var isShared: Bool
     var collaboratorUserID: UUID?
     var collaboratorName: String?
+    var shareStatus: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -23,6 +24,7 @@ struct MushafBundle: Identifiable, Codable, Hashable {
         isShared: Bool = false,
         collaboratorUserID: UUID? = nil,
         collaboratorName: String? = nil,
+        shareStatus: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -35,6 +37,7 @@ struct MushafBundle: Identifiable, Codable, Hashable {
         self.isShared = isShared
         self.collaboratorUserID = collaboratorUserID
         self.collaboratorName = collaboratorName
+        self.shareStatus = shareStatus
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -50,6 +53,7 @@ struct MushafBundle: Identifiable, Codable, Hashable {
         isShared = try container.decodeIfPresent(Bool.self, forKey: .isShared) ?? false
         collaboratorUserID = try container.decodeIfPresent(UUID.self, forKey: .collaboratorUserID)
         collaboratorName = try container.decodeIfPresent(String.self, forKey: .collaboratorName)
+        shareStatus = try container.decodeIfPresent(String.self, forKey: .shareStatus)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }
@@ -59,5 +63,6 @@ struct MushafBundle: Identifiable, Codable, Hashable {
         case serverID = "server_id"
         case collaboratorUserID = "collaborator_user_id"
         case collaboratorName = "collaborator_name"
+        case shareStatus = "share_status"
     }
 }

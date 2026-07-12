@@ -248,6 +248,16 @@ struct BundleDetailView: View {
             currentIndex = min(currentIndex, newCount - 1)
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task { await pushBundleIfNeeded() }
+    }
+
+    private func pushBundleIfNeeded() async {
+        guard let bundle = bundleStore.bundle(id: bundleID), bundle.serverID != nil, !bundle.isShared else { return }
+        do {
+            try await RemoteBundleService().updateBundle(bundle, mushafID: reciteVM.mushafID)
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 
     private func dragHandle(for page: Int, isSource: Bool, isTargeted: Bool) -> some View {
@@ -407,6 +417,7 @@ struct BundleDetailView: View {
             if let index = bundleStore.bundle(id: bundle.id)?.pageNumbers.firstIndex(of: target) {
                 currentIndex = index
             }
+            Task { await pushBundleIfNeeded() }
         } else {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
@@ -419,10 +430,15 @@ struct BundleDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Share Bundle") { showShareSheet = true }
-                    if bundle.serverID != nil, let listenerID = bundle.collaboratorUserID {
+                    if bundle.serverID != nil,
+                       let listenerID = bundle.collaboratorUserID,
+                       bundle.shareStatus == "accepted" {
                         Button("Start Review") {
                             Task { await startReview(bundle: bundle, listenerID: listenerID) }
                         }
+                    } else if bundle.collaboratorUserID != nil, bundle.shareStatus != "accepted" {
+                        Button("Waiting for accept…") {}
+                            .disabled(true)
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

@@ -69,6 +69,8 @@ final class ReciteViewModel {
     var isMarkingMode = false
     var activeMarkType: MistakeMarkType = .tajweed
     var sessionMarks: [Int: MistakeMarkType] = [:]
+    var sessionMarkIDs: [Int: UUID] = [:]
+    private var marksPollTask: Task<Void, Never>?
 
     var isReviewListener: Bool { reviewSession?.role == .listener }
     var isReviewActive: Bool { reviewSession != nil }
@@ -609,6 +611,7 @@ final class ReciteViewModel {
         if let url = context.livekitURL, let token = context.livekitToken, !url.isEmpty, !token.isEmpty {
             Task { await VideoCallService.shared.connect(url: url, token: token) }
         }
+        startMarksPollingIfNeeded()
     }
 
     func endReviewSession() async {
@@ -618,9 +621,12 @@ final class ReciteViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+        marksPollTask?.cancel()
+        marksPollTask = nil
         reviewSession = nil
         isMarkingMode = false
         sessionMarks = [:]
+        sessionMarkIDs = [:]
         await VideoCallService.shared.disconnect()
         exitBundleMushaf()
     }
@@ -646,8 +652,17 @@ final class ReciteViewModel {
             return
         }
 
-        if sessionMarks[word.id] == activeMarkType {
+        if sessionMarks[word.id] != nil {
+            if let markID = sessionMarkIDs[word.id] {
+                do {
+                    try await ReviewSessionService().deleteMark(id: markID)
+                } catch {
+                    errorMessage = error.localizedDescription
+                    return
+                }
+            }
             sessionMarks.removeValue(forKey: word.id)
+            sessionMarkIDs.removeValue(forKey: word.id)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             return
         }
@@ -663,9 +678,39 @@ final class ReciteViewModel {
                 note: nil
             )
             sessionMarks[word.id] = MistakeMarkType(rawValue: mark.markType) ?? activeMarkType
+            sessionMarkIDs[word.id] = mark.id
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+
+    private func startMarksPollingIfNeeded() {
+        marksPollTask?.cancel()
+        guard reviewSession != nil else { return }
+        marksPollTask = Task {
+            while !Task.isCancelled {
+                await refreshSessionMarks()
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+            }
+        }
+    }
+
+    private func refreshSessionMarks() async {
+        guard let session = reviewSession else { return }
+        do {
+            let marks = try await ReviewSessionService().fetchMarks(sessionID: session.sessionID)
+            var map: [Int: MistakeMarkType] = [:]
+            var ids: [Int: UUID] = [:]
+            for mark in marks {
+                map[mark.wordID] = MistakeMarkType(rawValue: mark.markType) ?? .other
+                ids[mark.wordID] = mark.id
+            }
+            sessionMarks = map
+            sessionMarkIDs = ids
+        } catch {
+            // Ignore transient poll errors during active review.
         }
     }
 

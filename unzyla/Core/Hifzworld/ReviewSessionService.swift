@@ -18,7 +18,14 @@ struct ReviewSessionService {
     }
 
     func pendingSession(bundleServerID: UUID) async throws -> ReviewSessionDTO {
-        try await api.get("/api/review_sessions/pending?mushaf_bundle_id=\(bundleServerID.uuidString.lowercased())")
+        try await api.get(
+            "/api/review_sessions/pending",
+            query: [URLQueryItem(name: "mushaf_bundle_id", value: bundleServerID.uuidString.lowercased())]
+        )
+    }
+
+    func fetchMarks(sessionID: UUID) async throws -> [SessionMarkDTO] {
+        try await api.get("/api/review_sessions/\(sessionID.uuidString.lowercased())/marks")
     }
 
     func createMark(
@@ -42,6 +49,10 @@ struct ReviewSessionService {
             "/api/review_sessions/\(sessionID.uuidString.lowercased())/marks",
             body: body
         )
+    }
+
+    func deleteMark(id: UUID) async throws {
+        try await api.delete("/api/session_marks/\(id.uuidString.lowercased())")
     }
 
     func fetchFeedback() async throws -> [FeedbackSessionDTO] {

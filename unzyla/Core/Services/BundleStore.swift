@@ -142,6 +142,9 @@ final class BundleStore {
                 bundle.pageNumbers = remote.pageNumbers
                 bundle.mushafID = remote.mushafID
                 bundle.isShared = isShared
+                bundle.collaboratorUserID = remote.collaboratorUserID ?? bundle.collaboratorUserID
+                bundle.collaboratorName = remote.collaboratorName ?? bundle.collaboratorName
+                bundle.shareStatus = remote.shareStatus ?? bundle.shareStatus
                 bundle.updatedAt = remote.updatedAt ?? Date()
                 merged.append(bundle)
             } else {
@@ -153,6 +156,9 @@ final class BundleStore {
                         pageNumbers: remote.pageNumbers,
                         mushafID: remote.mushafID,
                         isShared: isShared,
+                        collaboratorUserID: remote.collaboratorUserID,
+                        collaboratorName: remote.collaboratorName,
+                        shareStatus: remote.shareStatus,
                         createdAt: remote.createdAt ?? Date(),
                         updatedAt: remote.updatedAt ?? Date()
                     )
@@ -188,10 +194,11 @@ final class BundleStore {
         save()
     }
 
-    func setCollaborator(userID: UUID, name: String?, for bundleID: UUID) {
+    func setCollaborator(userID: UUID, name: String?, for bundleID: UUID, shareStatus: String = "pending") {
         guard let index = bundles.firstIndex(where: { $0.id == bundleID }) else { return }
         bundles[index].collaboratorUserID = userID
         bundles[index].collaboratorName = name
+        bundles[index].shareStatus = shareStatus
         save()
     }
 }
