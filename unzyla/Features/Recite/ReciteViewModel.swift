@@ -606,6 +606,9 @@ final class ReciteViewModel {
         isMarkingMode = context.role == .listener
         isPaintMode = false
         enterBundleMushaf(bundle: bundle, startingPage: startingPage)
+        if let url = context.livekitURL, let token = context.livekitToken, !url.isEmpty, !token.isEmpty {
+            Task { await VideoCallService.shared.connect(url: url, token: token) }
+        }
     }
 
     func endReviewSession() async {
@@ -618,6 +621,7 @@ final class ReciteViewModel {
         reviewSession = nil
         isMarkingMode = false
         sessionMarks = [:]
+        await VideoCallService.shared.disconnect()
         exitBundleMushaf()
     }
 

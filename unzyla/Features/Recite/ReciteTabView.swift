@@ -5,6 +5,7 @@ struct ReciteTabView: View {
     @Bindable var bundleStore: BundleStore
     let onCreateBundle: () -> Void
     @State private var goPageField = ""
+    @Bindable private var videoCall = VideoCallService.shared
     @State private var activeWordScreenFrame: CGRect?
     @State private var versePanelTopY: CGFloat?
 
@@ -204,6 +205,11 @@ struct ReciteTabView: View {
                     )
                 }
                 .transition(.move(edge: .trailing))
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.isReviewActive {
+                VideoCallOverlayView(video: videoCall)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.isDrawerOpen)

@@ -184,6 +184,8 @@ struct ReviewSessionContext: Equatable {
     let bundleServerID: UUID
     let role: Role
     let partnerName: String
+    let livekitURL: String?
+    let livekitToken: String?
 }
 
 struct APIErrorResponse: Codable {

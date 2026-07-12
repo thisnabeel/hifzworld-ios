@@ -464,7 +464,9 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .reciter,
-                partnerName: session.listener?.displayName ?? "Listener"
+                partnerName: session.listener?.displayName ?? "Listener",
+                livekitURL: session.livekit?.url,
+                livekitToken: session.livekit?.token
             )
             let startPage = bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)
@@ -483,7 +485,9 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .listener,
-                partnerName: session.reciter?.displayName ?? "Reciter"
+                partnerName: session.reciter?.displayName ?? "Reciter",
+                livekitURL: session.livekit?.url,
+                livekitToken: session.livekit?.token
             )
             let startPage = bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)
