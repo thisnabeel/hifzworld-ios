@@ -1,17 +1,14 @@
-//
-//  unzylaApp.swift
-//  unzyla
-//
-//  Created by Nabeel Khan on 6/25/26.
-//
-
 import SwiftUI
 
 @main
 struct unzylaApp: App {
+    init() {
+        FontRegistration.registerAll()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootTabView()
         }
     }
 }

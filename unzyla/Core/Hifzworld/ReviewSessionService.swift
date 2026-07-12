@@ -1,0 +1,78 @@
+import Foundation
+
+@MainActor
+struct ReviewSessionService {
+    private let api = HifzworldAPIClient.shared
+
+    func start(bundleServerID: UUID, listenerID: UUID) async throws -> ReviewSessionDTO {
+        let body = StartSessionBody(mushafBundleID: bundleServerID, listenerID: listenerID)
+        return try await api.post("/api/review_sessions", body: body)
+    }
+
+    func join(sessionID: UUID) async throws -> ReviewSessionDTO {
+        try await api.post("/api/review_sessions/\(sessionID.uuidString.lowercased())/join")
+    }
+
+    func end(sessionID: UUID) async throws -> ReviewSessionDTO {
+        try await api.patch("/api/review_sessions/\(sessionID.uuidString.lowercased())/end")
+    }
+
+    func pendingSession(bundleServerID: UUID) async throws -> ReviewSessionDTO {
+        try await api.get("/api/review_sessions/pending?mushaf_bundle_id=\(bundleServerID.uuidString.lowercased())")
+    }
+
+    func createMark(
+        sessionID: UUID,
+        wordID: Int,
+        verseKey: String,
+        pageNumber: Int,
+        mushafID: Int,
+        markType: MistakeMarkType,
+        note: String?
+    ) async throws -> SessionMarkDTO {
+        let body = CreateMarkBody(
+            wordID: wordID,
+            verseKey: verseKey,
+            pageNumber: pageNumber,
+            mushafID: mushafID,
+            markType: markType.rawValue,
+            note: note
+        )
+        return try await api.post(
+            "/api/review_sessions/\(sessionID.uuidString.lowercased())/marks",
+            body: body
+        )
+    }
+
+    func fetchFeedback() async throws -> [FeedbackSessionDTO] {
+        try await api.get("/api/users/me/feedback")
+    }
+}
+
+private struct StartSessionBody: Encodable {
+    let mushafBundleID: UUID
+    let listenerID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case mushafBundleID = "mushaf_bundle_id"
+        case listenerID = "listener_id"
+    }
+}
+
+private struct CreateMarkBody: Encodable {
+    let wordID: Int
+    let verseKey: String
+    let pageNumber: Int
+    let mushafID: Int
+    let markType: String
+    let note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case note
+        case wordID = "word_id"
+        case verseKey = "verse_key"
+        case pageNumber = "page_number"
+        case mushafID = "mushaf_id"
+        case markType = "mark_type"
+    }
+}
