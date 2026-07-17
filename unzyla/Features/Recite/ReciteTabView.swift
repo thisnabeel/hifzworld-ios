@@ -3,14 +3,48 @@ import SwiftUI
 struct ReciteTabView: View {
     @Bindable var viewModel: ReciteViewModel
     @Bindable var bundleStore: BundleStore
+    @Binding var selectedTab: Int
     let onCreateBundle: () -> Void
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var goPageField = ""
-    @Bindable private var videoCall = VideoCallService.shared
     @State private var activeWordScreenFrame: CGRect?
     @State private var versePanelTopY: CGFloat?
+    @State private var showAppFeedbackSheet = false
+
+    private var showsSpread: Bool {
+        verticalSizeClass == .compact
+    }
 
     private var showingVerseOverlay: Bool {
         !viewModel.isPaintMode && viewModel.selectedVerse != nil
+    }
+
+    private var hasPaintOnVisiblePages: Bool {
+        viewModel.hasPaintedWordsOnVisiblePages
+    }
+
+    /// Full paint options when actively painting or visible pages have paints.
+    private var shouldShowPaintTools: Bool {
+        viewModel.isPaintMode || hasPaintOnVisiblePages
+    }
+
+    /// Bottom chrome: review tools, paint tools, or landscape tabs.
+    private var shouldShowBottomChrome: Bool {
+        viewModel.isReviewListener || shouldShowPaintTools || showsSpread
+    }
+
+    /// Top chrome stays dark; bottom inset follows mushaf light/dark.
+    private var reciteShellBackground: Color {
+        Color(red: 0.12, green: 0.12, blue: 0.13)
+    }
+
+    private var bottomBarBackground: Color {
+        if showsSpread {
+            return viewModel.isDarkMode
+                ? Color(red: 0.14, green: 0.14, blue: 0.15)
+                : Color(red: 0.97, green: 0.97, blue: 0.98)
+        }
+        return viewModel.isDarkMode ? AppTheme.mushafDarkBackground : .white
     }
 
     private var mushafPushOffset: CGFloat {
@@ -27,15 +61,20 @@ struct ReciteTabView: View {
         var hasher = Hasher()
         hasher.combine(viewModel.isPaintMode)
         hasher.combine(viewModel.activePaintStyle)
-        hasher.combine(viewModel.paintedWords)
+        hasher.combine(viewModel.displayPaintedWords)
         hasher.combine(viewModel.arePaintedWordsVisible)
         hasher.combine(viewModel.isPaintInverted)
         hasher.combine(viewModel.sessionMarks)
         hasher.combine(viewModel.isMarkingMode)
+        hasher.combine(viewModel.pageHidden)
         hasher.combine(viewModel.activeWordID)
         hasher.combine(viewModel.selectedVerse)
         hasher.combine(mushafPushOffset)
+        hasher.combine(showsSpread)
         hasher.combine(viewModel.pages[viewModel.currentPage]?.id)
+        if let left = viewModel.activeSpread.leftPage {
+            hasher.combine(viewModel.pages[left]?.id)
+        }
         return hasher.finalize()
     }
 
@@ -44,6 +83,7 @@ struct ReciteTabView: View {
             VStack(spacing: 0) {
                 MushafTopBar(
                     currentPage: viewModel.currentPage,
+                    pageLabel: showsSpread ? viewModel.activeSpread.displayLabel : nil,
                     selectedNarratorIDs: viewModel.selectedNarratorIDs,
                     parentNarrators: viewModel.parentNarrators,
                     onMenu: { viewModel.isDrawerOpen = true },
@@ -60,14 +100,16 @@ struct ReciteTabView: View {
                         role: reviewSession.role,
                         isMarkingMode: viewModel.isMarkingMode,
                         activeMarkType: viewModel.activeMarkType,
+                        pageHidden: viewModel.pageHidden,
                         onToggleMarking: { viewModel.toggleMarkingMode() },
                         onSelectMarkType: { viewModel.setActiveMarkType($0) },
+                        onTogglePageHidden: { viewModel.togglePageHidden() },
                         onEnd: { Task { await viewModel.endReviewSession() } }
                     )
                 }
 
                 ZStack {
-                    Color.white
+                    AppTheme.pageBackground(dark: viewModel.isDarkMode)
                     if viewModel.isLoading || viewModel.isMushafSwitching {
                         ProgressView(viewModel.isMushafSwitching ? "Loading mushaf…" : "Loading mushaf…")
                     } else {
@@ -81,71 +123,124 @@ struct ReciteTabView: View {
                             totalPages: viewModel.totalPages,
                             allowedPages: viewModel.bundleSession?.pages,
                             isDarkMode: viewModel.isDarkMode,
-                            contentStamp: mushafContentStamp
-                        ) { page in
+                            contentStamp: mushafContentStamp,
+                            isPagingEnabled: viewModel.isReviewPagingEnabled,
+                            showsSpread: showsSpread
+                        ) { identityPage in
                             AnyView(
-                                pageContent(page)
-                                    .padding(.horizontal, 13)
+                                spreadOrPageContent(identityPage: identityPage)
                             )
                         }
-                        .id(viewModel.mushafReloadToken)
+                        .id("\(viewModel.mushafReloadToken)-\(showsSpread)")
+                    }
+
+                    if viewModel.isReviewActive, !viewModel.isReviewListener, viewModel.pageHidden {
+                        Color(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : AppTheme.mushafBackground)
+                            .overlay {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "eye.slash.fill")
+                                        .font(.system(size: 28, weight: .medium))
+                                    Text("Page hidden by listener")
+                                        .font(.headline)
+                                    Text("They’ll reveal it when you’re ready.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .foregroundStyle(viewModel.isDarkMode ? .white : .primary)
+                            }
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .background(Color(red: 0.12, green: 0.12, blue: 0.13))
+            .background(reciteShellBackground)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 0) {
                     if let session = viewModel.bundleSession {
                         BundleMushafSegmentBar(
                             session: session,
                             onSelect: { viewModel.goToBundlePage(at: $0) },
-                            onExit: { viewModel.exitBundleMushaf() }
+                            onExit: {
+                                if viewModel.isReviewActive {
+                                    Task { await viewModel.endReviewSession() }
+                                } else {
+                                    viewModel.exitBundleMushaf()
+                                }
+                            }
                         )
+                        .frame(height: showsSpread ? 34 : 44)
                     }
                     if !showingVerseOverlay {
-                        ReciteBottomChrome(
-                            isPaintMode: viewModel.isPaintMode,
-                            isMarkingMode: viewModel.isMarkingMode,
-                            isReviewListener: viewModel.isReviewListener,
-                            activeMarkType: viewModel.activeMarkType,
-                            onToggleMarkingMode: { viewModel.toggleMarkingMode() },
-                            onSelectMarkType: { viewModel.setActiveMarkType($0) },
-                            selectedVerse: nil,
-                            activePaintStyle: viewModel.activePaintStyle,
-                            arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
-                            isPaintInverted: viewModel.isPaintInverted,
-                            hasPaintedWords: !viewModel.paintedWords.isEmpty,
-                            onTogglePaintMode: { viewModel.togglePaintMode() },
-                            onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
-                            onSelectPaintStyle: viewModel.setActivePaintStyle,
-                            onTogglePaintInverted: { viewModel.togglePaintInverted() },
-                            onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
-                        )
+                        if shouldShowBottomChrome {
+                            ReciteBottomChrome(
+                                isPaintMode: viewModel.isPaintMode,
+                                isMarkingMode: viewModel.isMarkingMode,
+                                isReviewListener: viewModel.isReviewListener,
+                                pageHidden: viewModel.pageHidden,
+                                isCompactLandscape: showsSpread,
+                                isDarkMode: viewModel.isDarkMode,
+                                showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
+                                selectedTab: $selectedTab,
+                                activeMarkType: viewModel.activeMarkType,
+                                onToggleMarkingMode: { viewModel.toggleMarkingMode() },
+                                onSelectMarkType: { viewModel.setActiveMarkType($0) },
+                                onTogglePageHidden: { viewModel.togglePageHidden() },
+                                selectedVerse: nil,
+                                activePaintStyle: viewModel.activePaintStyle,
+                                arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
+                                isPaintInverted: viewModel.isPaintInverted,
+                                hasPaintedWords: hasPaintOnVisiblePages,
+                                onTogglePaintMode: { viewModel.togglePaintMode() },
+                                onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
+                                onSelectPaintStyle: viewModel.setActivePaintStyle,
+                                onTogglePaintInverted: { viewModel.togglePaintInverted() },
+                                onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
+                            )
+                        } else {
+                            paintModeEntryButton
+                                .padding(.leading, 16)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .background(bottomBarBackground)
+                .overlay(alignment: .top) {
+                    if !shouldShowBottomChrome || showingVerseOverlay {
+                        Rectangle()
+                            .fill(viewModel.isDarkMode ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
+                            .frame(height: 1 / UIScreen.main.scale)
                     }
                 }
             }
+            .toolbar(showsSpread ? .hidden : .automatic, for: .tabBar)
             .overlay(alignment: .bottom) {
                 if showingVerseOverlay {
                     ReciteBottomChrome(
                         isPaintMode: false,
                         isMarkingMode: viewModel.isMarkingMode,
                         isReviewListener: viewModel.isReviewListener,
+                        pageHidden: viewModel.pageHidden,
+                        isCompactLandscape: showsSpread,
+                        isDarkMode: viewModel.isDarkMode,
+                        showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
+                        selectedTab: $selectedTab,
                         activeMarkType: viewModel.activeMarkType,
                         onToggleMarkingMode: { viewModel.toggleMarkingMode() },
                         onSelectMarkType: { viewModel.setActiveMarkType($0) },
+                        onTogglePageHidden: { viewModel.togglePageHidden() },
                         selectedVerse: viewModel.selectedVerse,
                         activePaintStyle: viewModel.activePaintStyle,
                         arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
                         isPaintInverted: viewModel.isPaintInverted,
-                        hasPaintedWords: !viewModel.paintedWords.isEmpty,
+                        hasPaintedWords: hasPaintOnVisiblePages,
                         onTogglePaintMode: { viewModel.togglePaintMode() },
                         onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
                         onSelectPaintStyle: viewModel.setActivePaintStyle,
                         onTogglePaintInverted: { viewModel.togglePaintInverted() },
                         onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
                     )
-                    .background(Color.white)
+                    .background(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : Color.white)
                     .shadow(color: .black.opacity(0.14), radius: 16, y: -6)
                     .background(
                         GeometryReader { geo in
@@ -175,20 +270,22 @@ struct ReciteTabView: View {
                     .ignoresSafeArea()
                     .onTapGesture { viewModel.isDrawerOpen = false }
                 DrawerView(
-                    parents: viewModel.parentNarrators,
-                    expandedParents: Binding(
-                        get: { viewModel.expandedParentIDs },
-                        set: { viewModel.expandedParentIDs = $0 }
-                    ),
-                    selectedIDs: Set(viewModel.selectedNarratorIDs),
-                    onToggle: viewModel.toggleNarrator,
+                    user: AuthService.shared.currentUser,
                     onSettings: {
                         viewModel.isDrawerOpen = false
                         viewModel.isSettingsOpen = true
                     },
+                    onSendFeedback: {
+                        viewModel.isDrawerOpen = false
+                        showAppFeedbackSheet = true
+                    },
+                    onSignOut: {
+                        AuthService.shared.signOut()
+                        viewModel.isDrawerOpen = false
+                    },
                     onClose: { viewModel.isDrawerOpen = false }
                 )
-                .frame(width: 300)
+                .frame(width: 280)
                 .transition(.move(edge: .leading))
             }
 
@@ -207,13 +304,15 @@ struct ReciteTabView: View {
                 .transition(.move(edge: .trailing))
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if viewModel.isReviewActive {
-                VideoCallOverlayView(video: videoCall)
-            }
-        }
         .animation(.easeInOut(duration: 0.25), value: viewModel.isDrawerOpen)
         .animation(.easeInOut(duration: 0.25), value: viewModel.isSidebarOpen)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.pageHidden)
+        .onAppear {
+            viewModel.setPrefersSpreadLayout(showsSpread)
+        }
+        .onChange(of: showsSpread) { _, isSpread in
+            viewModel.setPrefersSpreadLayout(isSpread)
+        }
         .sheet(isPresented: Binding(
             get: { viewModel.isSettingsOpen },
             set: { viewModel.isSettingsOpen = $0 }
@@ -252,6 +351,9 @@ struct ReciteTabView: View {
                 }
             )
         }
+        .sheet(isPresented: $showAppFeedbackSheet) {
+            SendAppFeedbackSheet()
+        }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -262,8 +364,105 @@ struct ReciteTabView: View {
         }
     }
 
+    private var paintModeEntryButton: some View {
+        Button {
+            viewModel.togglePaintMode()
+        } label: {
+            Image(systemName: "paintbrush.fill")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(viewModel.isDarkMode ? .white : .black)
+                .frame(width: 44, height: 44)
+                .background(viewModel.isDarkMode ? Color.white.opacity(0.10) : Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            viewModel.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.14),
+                            lineWidth: 1.5
+                        )
+                )
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Paint mode")
+    }
+
     @ViewBuilder
-    private func pageContent(_ pageNumber: Int) -> some View {
+    private func spreadOrPageContent(identityPage: Int) -> some View {
+        let spread = MushafSpread.forDisplay(
+            containing: identityPage,
+            totalPages: viewModel.totalPages,
+            allowedPages: viewModel.bundleSession?.pages,
+            showsSpread: showsSpread
+        )
+
+        if showsSpread, spread.leftPage != nil {
+            LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode) {
+                HStack(spacing: 0) {
+                    if let leftPage = spread.leftPage {
+                        // Even page (screen left): extra padding on the spine (trailing) side.
+                        pageContent(leftPage, fillsHalfSpread: true, gutterEdge: .trailing)
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            .overlay(alignment: .trailing) {
+                                bookGutterShadow(edge: .trailing)
+                            }
+                    }
+                    // Odd page (screen right): extra padding on the spine (leading) side.
+                    pageContent(spread.rightPage, fillsHalfSpread: true, gutterEdge: .leading)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .overlay(alignment: .leading) {
+                            bookGutterShadow(edge: .leading)
+                        }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 24)
+            }
+            .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
+        } else if showsSpread {
+            LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode) {
+                pageContent(spread.rightPage, fillsHalfSpread: true)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.horizontal, 13)
+                    .padding(.bottom, 24)
+            }
+            .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
+        } else {
+            pageContent(spread.rightPage, fillsHalfSpread: false)
+                .padding(.horizontal, 13)
+        }
+    }
+
+    /// Soft spine crease between facing pages.
+    private func bookGutterShadow(edge: HorizontalEdge) -> some View {
+        let colors: [Color] = edge == .trailing
+            ? [
+                Color.clear,
+                Color.black.opacity(0.03),
+                Color.black.opacity(0.10),
+                Color.black.opacity(0.22)
+            ]
+            : [
+                Color.black.opacity(0.26),
+                Color.black.opacity(0.12),
+                Color.black.opacity(0.04),
+                Color.clear
+            ]
+
+        return LinearGradient(
+            colors: colors,
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(width: 28)
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func pageContent(
+        _ pageNumber: Int,
+        fillsHalfSpread: Bool,
+        gutterEdge: HorizontalEdge? = nil
+    ) -> some View {
         if let page = viewModel.pages[pageNumber] {
             PageView(
                 page: page,
@@ -272,14 +471,16 @@ struct ReciteTabView: View {
                 isJuzFirstLine: viewModel.isJuzFirstLine,
                 variationLookup: viewModel.variationLookup,
                 activeWordID: viewModel.activeWordID,
-                paintedWords: viewModel.paintedWords,
+                paintedWords: viewModel.displayPaintedWords,
                 arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
                 isPaintInverted: viewModel.isPaintInverted,
-                sessionMarks: viewModel.sessionMarks,
+                sessionMarks: viewModel.isReviewListener ? viewModel.sessionMarks : [:],
                 contentPushOffset: mushafPushOffset,
-                onWordTap: { word in Task { await viewModel.handleWordTap(word) } },
+                fillsHalfSpread: fillsHalfSpread,
+                gutterEdge: gutterEdge,
+                onWordTap: { word in Task { await viewModel.handleWordTap(word, pageNumber: pageNumber) } },
                 onActiveWordFrameChange: { frame in
-                    if pageNumber == viewModel.currentPage {
+                    if pageNumber == viewModel.currentPage || pageNumber == viewModel.activeSpread.leftPage {
                         activeWordScreenFrame = frame
                     }
                 }
@@ -287,8 +488,115 @@ struct ReciteTabView: View {
             .id("\(viewModel.mushafReloadToken.uuidString)-\(viewModel.mushafID)-\(pageNumber)-\(page.id)")
         } else {
             ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 200)
                 .task { await viewModel.loadPage(pageNumber) }
         }
+    }
+}
+
+/// Landscape Mushaf scroll with thin progress rails on both sides.
+private struct LandscapeSpreadScrollView<Content: View>: View {
+    let isDarkMode: Bool
+    @ViewBuilder let content: () -> Content
+
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+    @State private var contentMinY: CGFloat = 0
+
+    private var canScroll: Bool {
+        contentHeight > viewportHeight + 8
+    }
+
+    private var scrollableDistance: CGFloat {
+        max(contentHeight - viewportHeight, 1)
+    }
+
+    /// 0 at top … 1 at bottom.
+    private var progress: CGFloat {
+        min(1, max(0, -contentMinY / scrollableDistance))
+    }
+
+    private var thumbRatio: CGFloat {
+        guard contentHeight > 0 else { return 1 }
+        return min(1, max(0.12, viewportHeight / contentHeight))
+    }
+
+    var body: some View {
+        GeometryReader { viewport in
+            ScrollView(.vertical, showsIndicators: false) {
+                content()
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: SpreadScrollMetricsKey.self,
+                                value: SpreadScrollMetrics(
+                                    contentHeight: geo.size.height,
+                                    minY: geo.frame(in: .named("spreadScroll")).minY
+                                )
+                            )
+                        }
+                    )
+            }
+            .coordinateSpace(name: "spreadScroll")
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+            .onPreferenceChange(SpreadScrollMetricsKey.self) { metrics in
+                contentHeight = metrics.contentHeight
+                contentMinY = metrics.minY
+            }
+            .onAppear {
+                viewportHeight = viewport.size.height
+            }
+            .onChange(of: viewport.size.height) { _, height in
+                viewportHeight = height
+            }
+            .overlay {
+                if canScroll {
+                    HStack {
+                        scrollRail
+                        Spacer(minLength: 0)
+                        scrollRail
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 3)
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+    }
+
+    private var scrollRail: some View {
+        GeometryReader { rail in
+            let trackHeight = rail.size.height
+            let thumbHeight = max(28, trackHeight * thumbRatio)
+            let travel = max(trackHeight - thumbHeight, 0)
+            let thumbY = travel * progress
+
+            ZStack(alignment: .top) {
+                Capsule()
+                    .fill(isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.08))
+                    .frame(width: 3)
+
+                Capsule()
+                    .fill(isDarkMode ? Color.white.opacity(0.55) : Color.black.opacity(0.35))
+                    .frame(width: 3, height: thumbHeight)
+                    .offset(y: thumbY)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(width: 3)
+    }
+}
+
+private struct SpreadScrollMetrics: Equatable {
+    var contentHeight: CGFloat
+    var minY: CGFloat
+}
+
+private struct SpreadScrollMetricsKey: PreferenceKey {
+    static var defaultValue = SpreadScrollMetrics(contentHeight: 0, minY: 0)
+
+    static func reduce(value: inout SpreadScrollMetrics, nextValue: () -> SpreadScrollMetrics) {
+        value = nextValue()
     }
 }
 

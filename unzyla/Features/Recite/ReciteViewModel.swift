@@ -70,10 +70,53 @@ final class ReciteViewModel {
     var activeMarkType: MistakeMarkType = .tajweed
     var sessionMarks: [Int: MistakeMarkType] = [:]
     var sessionMarkIDs: [Int: UUID] = [:]
-    private var marksPollTask: Task<Void, Never>?
+    var pageHidden = false
+    /// When true (landscape), navigation uses odd-right / even-left spreads.
+    var prefersSpreadLayout = false
+    private var reviewPollTask: Task<Void, Never>?
+    private var isApplyingRemotePage = false
 
     var isReviewListener: Bool { reviewSession?.role == .listener }
     var isReviewActive: Bool { reviewSession != nil }
+    var isReviewPagingEnabled: Bool { !isReviewActive || isReviewListener }
+
+    var activeSpread: MushafSpread {
+        MushafSpread.forDisplay(
+            containing: currentPage,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: prefersSpreadLayout
+        )
+    }
+
+    /// Pages currently on screen (one in portrait, spread pair in landscape).
+    var visiblePageNumbers: [Int] {
+        prefersSpreadLayout ? activeSpread.pages : [currentPage]
+    }
+
+    /// Whether any user-painted words exist on the currently visible page(s).
+    var hasPaintedWordsOnVisiblePages: Bool {
+        guard !paintedWords.isEmpty else { return false }
+        for pageNumber in visiblePageNumbers {
+            guard let page = pages[pageNumber] else { continue }
+            for line in page.lines {
+                for word in line.words where paintedWords[word.id] != nil {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// Reciter sees listener marks as blackout; listener keeps normal paint + mark highlights.
+    var displayPaintedWords: [Int: WordPaintStyle] {
+        guard isReviewActive, !isReviewListener else { return paintedWords }
+        var map = paintedWords
+        for wordID in sessionMarks.keys {
+            map[wordID] = .blackout
+        }
+        return map
+    }
 
     var iosUpdateWall: MinVersionCheckResult?
 
@@ -250,6 +293,9 @@ final class ReciteViewModel {
     }
 
     func goToBundlePage(at index: Int) {
+        if isReviewActive, !isReviewListener, !isApplyingRemotePage {
+            return
+        }
         guard var session = bundleSession else { return }
         let clamped = min(max(index, 0), session.pages.count - 1)
         session.currentIndex = clamped
@@ -262,41 +308,116 @@ final class ReciteViewModel {
         if let index = session.pages.firstIndex(of: page) {
             session.currentIndex = index
             bundleSession = session
-        } else {
-            exitBundleMushaf()
+            return
         }
+        // Spread identity may be the odd right while the listener tapped the even partner.
+        if prefersSpreadLayout,
+           let left = MushafSpread.natural(containing: page, totalPages: totalPages).leftPage,
+           let index = session.pages.firstIndex(of: left) {
+            session.currentIndex = index
+            bundleSession = session
+            return
+        }
+        exitBundleMushaf()
     }
 
     func goToPage(_ page: Int) {
+        if isReviewActive, !isReviewListener, !isApplyingRemotePage {
+            return
+        }
         let clamped = min(max(page, 1), totalPages)
         if let session = bundleSession, !session.pages.contains(clamped) {
-            exitBundleMushaf()
+            let spread = MushafSpread.forDisplay(
+                containing: clamped,
+                totalPages: totalPages,
+                allowedPages: session.pages,
+                showsSpread: prefersSpreadLayout
+            )
+            let inSpread = spread.pages.contains { session.pages.contains($0) }
+            if !inSpread {
+                exitBundleMushaf()
+            }
         }
-        currentPage = clamped
+        let identity = MushafSpread.identityPage(
+            for: clamped,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: prefersSpreadLayout
+        )
+        currentPage = identity
+        syncBundleIndex(with: identity)
         Task {
-            await loadPage(clamped)
-            await prefetchAround(clamped)
+            await loadSpread(around: identity)
+            await prefetchAround(identity)
         }
+        publishPageIfListener(identity)
     }
 
     func onPageChanged(_ page: Int) {
-        syncBundleIndex(with: page)
-        currentPage = page
+        if isReviewActive, !isReviewListener, !isApplyingRemotePage {
+            return
+        }
+        let identity = MushafSpread.identityPage(
+            for: page,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: prefersSpreadLayout
+        )
+        syncBundleIndex(with: identity)
+        currentPage = identity
         Task {
-            await loadPage(page)
-            await prefetchAround(page)
+            await loadSpread(around: identity)
+            await prefetchAround(identity)
             traversalIndex = 0
             activeWordID = nil
             selectedVerse = nil
             verseTranslationTask?.cancel()
         }
+        publishPageIfListener(identity)
     }
 
     func prefetchAround(_ center: Int) async {
         let fetchMushafID = mushafID
-        let pagesToPrefetch: [Int]
+        var pagesToPrefetch: [Int] = []
 
-        if let session = bundleSession, let centerIndex = session.pages.firstIndex(of: center) {
+        if prefersSpreadLayout {
+            let current = MushafSpread.forDisplay(
+                containing: center,
+                totalPages: totalPages,
+                allowedPages: bundleSession?.pages,
+                showsSpread: true
+            )
+            pagesToPrefetch.append(contentsOf: current.pages.filter { $0 != center })
+
+            if let next = MushafSpread.adjacentIdentity(
+                from: current.rightPage,
+                forward: true,
+                totalPages: totalPages,
+                allowedPages: bundleSession?.pages,
+                showsSpread: true
+            ) {
+                pagesToPrefetch.append(contentsOf: MushafSpread.forDisplay(
+                    containing: next,
+                    totalPages: totalPages,
+                    allowedPages: bundleSession?.pages,
+                    showsSpread: true
+                ).pages)
+            }
+            if let prev = MushafSpread.adjacentIdentity(
+                from: current.rightPage,
+                forward: false,
+                totalPages: totalPages,
+                allowedPages: bundleSession?.pages,
+                showsSpread: true
+            ) {
+                pagesToPrefetch.append(contentsOf: MushafSpread.forDisplay(
+                    containing: prev,
+                    totalPages: totalPages,
+                    allowedPages: bundleSession?.pages,
+                    showsSpread: true
+                ).pages)
+            }
+        } else if let session = bundleSession, let centerIndex = session.pages.firstIndex(of: center) {
             pagesToPrefetch = (-2...2)
                 .map { centerIndex + $0 }
                 .filter { session.pages.indices.contains($0) && session.pages[$0] != center }
@@ -308,7 +429,8 @@ final class ReciteViewModel {
                 .filter { $0 >= 1 && $0 <= totalPages }
         }
 
-        for p in pagesToPrefetch {
+        let unique = Array(Set(pagesToPrefetch)).sorted()
+        for p in unique {
             guard mushafID == fetchMushafID else { return }
             if await pageCache.page(p) != nil { continue }
             if let page = try? await api.fetchPage(mushafID: fetchMushafID, position: p) {
@@ -316,6 +438,60 @@ final class ReciteViewModel {
                 await pageCache.store(page)
                 pages[p] = page
             }
+        }
+    }
+
+    /// Update landscape spread preference and load partner pages without fighting review locks.
+    func setPrefersSpreadLayout(_ enabled: Bool) {
+        let wasEnabled = prefersSpreadLayout
+        prefersSpreadLayout = enabled
+        let identity = MushafSpread.identityPage(
+            for: currentPage,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: enabled
+        )
+
+        if wasEnabled == enabled, identity == currentPage {
+            Task {
+                await loadSpread(around: identity)
+            }
+            return
+        }
+
+        if isReviewActive, !isReviewListener {
+            if currentPage != identity {
+                isApplyingRemotePage = true
+                currentPage = identity
+                syncBundleIndex(with: identity)
+                isApplyingRemotePage = false
+            }
+            Task {
+                await loadSpread(around: identity)
+                await prefetchAround(identity)
+            }
+            return
+        }
+
+        if currentPage != identity {
+            goToPage(identity)
+        } else {
+            Task {
+                await loadSpread(around: identity)
+                await prefetchAround(identity)
+            }
+        }
+    }
+
+    private func loadSpread(around identity: Int) async {
+        let spread = MushafSpread.forDisplay(
+            containing: identity,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: prefersSpreadLayout
+        )
+        for page in spread.pages {
+            await loadPage(page)
         }
     }
 
@@ -499,9 +675,9 @@ final class ReciteViewModel {
         }
     }
 
-    func handleWordTap(_ word: MushafWord) async {
+    func handleWordTap(_ word: MushafWord, pageNumber: Int? = nil) async {
         if isMarkingMode, reviewSession?.role == .listener {
-            await handleSessionMarkTap(word)
+            await handleSessionMarkTap(word, pageNumber: pageNumber ?? currentPage)
             return
         }
 
@@ -607,11 +783,9 @@ final class ReciteViewModel {
         reviewSession = context
         isMarkingMode = context.role == .listener
         isPaintMode = false
+        pageHidden = false
         enterBundleMushaf(bundle: bundle, startingPage: startingPage)
-        if let url = context.livekitURL, let token = context.livekitToken, !url.isEmpty, !token.isEmpty {
-            Task { await VideoCallService.shared.connect(url: url, token: token) }
-        }
-        startMarksPollingIfNeeded()
+        startReviewPollingIfNeeded()
     }
 
     func endReviewSession() async {
@@ -621,13 +795,13 @@ final class ReciteViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        marksPollTask?.cancel()
-        marksPollTask = nil
+        reviewPollTask?.cancel()
+        reviewPollTask = nil
         reviewSession = nil
         isMarkingMode = false
+        pageHidden = false
         sessionMarks = [:]
         sessionMarkIDs = [:]
-        await VideoCallService.shared.disconnect()
         exitBundleMushaf()
     }
 
@@ -641,11 +815,30 @@ final class ReciteViewModel {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
+    func togglePageHidden() {
+        guard isReviewListener, let session = reviewSession else { return }
+        let next = !pageHidden
+        pageHidden = next
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            do {
+                _ = try await ReviewSessionService().updateState(
+                    sessionID: session.sessionID,
+                    currentPage: nil,
+                    pageHidden: next
+                )
+            } catch {
+                pageHidden = !next
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     func setActiveMarkType(_ type: MistakeMarkType) {
         activeMarkType = type
     }
 
-    private func handleSessionMarkTap(_ word: MushafWord) async {
+    private func handleSessionMarkTap(_ word: MushafWord, pageNumber: Int) async {
         guard let session = reviewSession else { return }
         guard let verseKey = MushafWordVerse.verseKey(from: word.ayah) else {
             errorMessage = "Could not resolve verse for this word"
@@ -672,7 +865,7 @@ final class ReciteViewModel {
                 sessionID: session.sessionID,
                 wordID: word.id,
                 verseKey: verseKey,
-                pageNumber: currentPage,
+                pageNumber: pageNumber,
                 mushafID: mushafID,
                 markType: activeMarkType,
                 note: nil
@@ -685,15 +878,76 @@ final class ReciteViewModel {
         }
     }
 
-
-    private func startMarksPollingIfNeeded() {
-        marksPollTask?.cancel()
-        guard reviewSession != nil else { return }
-        marksPollTask = Task {
-            while !Task.isCancelled {
-                await refreshSessionMarks()
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
+    private func publishPageIfListener(_ page: Int) {
+        guard isReviewListener, let session = reviewSession, !isApplyingRemotePage else { return }
+        Task {
+            do {
+                _ = try await ReviewSessionService().updateState(
+                    sessionID: session.sessionID,
+                    currentPage: page,
+                    pageHidden: nil
+                )
+            } catch {
+                // Ignore transient publish errors; next poll/swipe will reconcile.
             }
+        }
+    }
+
+    private func applyRemotePage(_ page: Int) {
+        let identity = MushafSpread.identityPage(
+            for: page,
+            totalPages: totalPages,
+            allowedPages: bundleSession?.pages,
+            showsSpread: prefersSpreadLayout
+        )
+        guard identity != currentPage else {
+            // Still load partner if rotating into spread with same identity.
+            Task { await loadSpread(around: identity) }
+            return
+        }
+        isApplyingRemotePage = true
+        defer { isApplyingRemotePage = false }
+        syncBundleIndex(with: identity)
+        currentPage = identity
+        Task {
+            await loadSpread(around: identity)
+            await prefetchAround(identity)
+        }
+    }
+
+    private func startReviewPollingIfNeeded() {
+        reviewPollTask?.cancel()
+        guard reviewSession != nil else { return }
+        reviewPollTask = Task {
+            while !Task.isCancelled {
+                await refreshReviewSessionState()
+                await refreshSessionMarks()
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+        }
+    }
+
+    private func refreshReviewSessionState() async {
+        guard let session = reviewSession else { return }
+        do {
+            let remote = try await ReviewSessionService().fetchSession(sessionID: session.sessionID)
+            if remote.status == "ended" {
+                reviewPollTask?.cancel()
+                reviewPollTask = nil
+                reviewSession = nil
+                isMarkingMode = false
+                pageHidden = false
+                sessionMarks = [:]
+                sessionMarkIDs = [:]
+                exitBundleMushaf()
+                return
+            }
+            pageHidden = remote.pageHidden ?? false
+            if !isReviewListener, let remotePage = remote.currentPage {
+                applyRemotePage(remotePage)
+            }
+        } catch {
+            // Ignore transient poll errors during active review.
         }
     }
 

@@ -224,6 +224,10 @@ final class MushafLineUIView: UIView {
                 label.backgroundColor = Self.highlightYellow
                 label.layer.cornerRadius = 3
                 label.clipsToBounds = true
+            } else if sessionMark != nil, paintStyle == nil {
+                label.backgroundColor = Self.mistakeRed.withAlphaComponent(0.45)
+                label.layer.cornerRadius = 3
+                label.clipsToBounds = true
             } else if arePaintedWordsVisible,
                       !isPaintInverted,
                       paintStyle == nil,

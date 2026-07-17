@@ -24,10 +24,19 @@ struct BundlesTabView: View {
                     ContentUnavailableView(
                         "No Bundles Yet",
                         systemImage: "square.stack.3d.up",
-                        description: Text("Create a bundle, then add pages from the Mushaf tab.")
+                        description: Text("Bundles are collections of Mushaf pages for review. Create one, add pages from the Mushaf tab, then share it so someone can listen and mark feedback.")
                     )
                 } else {
                     List {
+                        Section {
+                            Text("Bundles are collections of Mushaf pages you save for review. Share one with a teacher or friend so they can follow along and mark feedback while you recite.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                        }
+
                         if !pendingShares.isEmpty {
                             Section("Incoming Shares") {
                                 ForEach(pendingShares) { share in

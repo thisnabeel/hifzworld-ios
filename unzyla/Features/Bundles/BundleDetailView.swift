@@ -480,11 +480,9 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .reciter,
-                partnerName: session.listener?.displayName ?? "Listener",
-                livekitURL: session.livekit?.url,
-                livekitToken: session.livekit?.token
+                partnerName: session.listener?.displayName ?? "Listener"
             )
-            let startPage = bundle.pageNumbers.first ?? 1
+            let startPage = session.currentPage ?? bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)
             onOpenInMushaf(bundle.id, startPage)
         } catch {
@@ -501,12 +499,11 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .listener,
-                partnerName: session.reciter?.displayName ?? "Reciter",
-                livekitURL: session.livekit?.url,
-                livekitToken: session.livekit?.token
+                partnerName: session.reciter?.displayName ?? "Reciter"
             )
-            let startPage = bundle.pageNumbers.first ?? 1
+            let startPage = session.currentPage ?? bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)
+            onOpenInMushaf(bundle.id, startPage)
         } catch {
             actionError = error.localizedDescription
         }

@@ -15,7 +15,8 @@ struct RootTabView: View {
             if let wall = reciteVM.iosUpdateWall, wall.blocked {
                 UpdateRequiredView(
                     installed: wall.installed ?? "?",
-                    required: wall.minVersion ?? "?"
+                    required: wall.minVersion ?? "?",
+                    appStoreId: wall.appStoreId
                 )
             } else {
                 VStack(spacing: 0) {
@@ -24,6 +25,7 @@ struct RootTabView: View {
                         ReciteTabView(
                             viewModel: reciteVM,
                             bundleStore: bundleStore,
+                            selectedTab: $selectedTab,
                             onCreateBundle: {
                                 newBundleTitle = ""
                                 newBundleDescription = ""

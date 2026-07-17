@@ -17,6 +17,18 @@ struct ReviewSessionService {
         try await api.patch("/api/review_sessions/\(sessionID.uuidString.lowercased())/end")
     }
 
+    func fetchSession(sessionID: UUID) async throws -> ReviewSessionDTO {
+        try await api.get("/api/review_sessions/\(sessionID.uuidString.lowercased())")
+    }
+
+    func updateState(sessionID: UUID, currentPage: Int?, pageHidden: Bool?) async throws -> ReviewSessionDTO {
+        let body = UpdateStateBody(currentPage: currentPage, pageHidden: pageHidden)
+        return try await api.patch(
+            "/api/review_sessions/\(sessionID.uuidString.lowercased())/state",
+            body: body
+        )
+    }
+
     func pendingSession(bundleServerID: UUID) async throws -> ReviewSessionDTO {
         try await api.get(
             "/api/review_sessions/pending",
@@ -67,6 +79,26 @@ private struct StartSessionBody: Encodable {
     enum CodingKeys: String, CodingKey {
         case mushafBundleID = "mushaf_bundle_id"
         case listenerID = "listener_id"
+    }
+}
+
+private struct UpdateStateBody: Encodable {
+    let currentPage: Int?
+    let pageHidden: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case currentPage = "current_page"
+        case pageHidden = "page_hidden"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let currentPage {
+            try container.encode(currentPage, forKey: .currentPage)
+        }
+        if let pageHidden {
+            try container.encode(pageHidden, forKey: .pageHidden)
+        }
     }
 }
 

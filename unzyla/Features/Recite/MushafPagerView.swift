@@ -9,6 +9,8 @@ struct RTLMushafPager: UIViewControllerRepresentable {
     let allowedPages: [Int]?
     let isDarkMode: Bool
     let contentStamp: Int
+    let isPagingEnabled: Bool
+    let showsSpread: Bool
     let pageContent: (Int) -> AnyView
 
     init(
@@ -19,6 +21,8 @@ struct RTLMushafPager: UIViewControllerRepresentable {
         allowedPages: [Int]? = nil,
         isDarkMode: Bool,
         contentStamp: Int,
+        isPagingEnabled: Bool = true,
+        showsSpread: Bool = false,
         pageContent: @escaping (Int) -> AnyView
     ) {
         _currentPage = currentPage
@@ -28,6 +32,8 @@ struct RTLMushafPager: UIViewControllerRepresentable {
         self.allowedPages = allowedPages
         self.isDarkMode = isDarkMode
         self.contentStamp = contentStamp
+        self.isPagingEnabled = isPagingEnabled
+        self.showsSpread = showsSpread
         self.pageContent = pageContent
     }
 
@@ -37,17 +43,20 @@ struct RTLMushafPager: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let controller = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal)
-        controller.dataSource = context.coordinator
+        controller.dataSource = isPagingEnabled ? context.coordinator : nil
         controller.delegate = context.coordinator
         controller.view.semanticContentAttribute = .forceRightToLeft
-        if let initial = context.coordinator.controller(for: currentPage) {
+        let identity = normalizedIdentity(currentPage)
+        if let initial = context.coordinator.controller(for: identity) {
             controller.setViewControllers([initial], direction: .forward, animated: false)
+            context.coordinator.lastRenderedPage = identity
         }
         return controller
     }
 
     func updateUIViewController(_ pageController: UIPageViewController, context: Context) {
         context.coordinator.parent = self
+        pageController.dataSource = isPagingEnabled ? context.coordinator : nil
 
         let allowedPagesChanged = context.coordinator.lastAllowedPagesFingerprint != Self.allowedPagesFingerprint(allowedPages)
         if allowedPagesChanged {
@@ -60,15 +69,25 @@ struct RTLMushafPager: UIViewControllerRepresentable {
             context.coordinator.lastRenderedPage = -1
         }
 
+        let spreadModeChanged = context.coordinator.lastShowsSpread != showsSpread
+        if spreadModeChanged {
+            context.coordinator.lastShowsSpread = showsSpread
+            context.coordinator.lastRenderedPage = -1
+        }
+
+        let identity = normalizedIdentity(currentPage)
         var didSetViewControllers = false
 
-        if mushafChanged || allowedPagesChanged || context.coordinator.lastRenderedPage != currentPage,
-           let vc = context.coordinator.controller(for: currentPage) {
+        if mushafChanged || allowedPagesChanged || spreadModeChanged || context.coordinator.lastRenderedPage != identity,
+           let vc = context.coordinator.controller(for: identity) {
             pageController.dataSource = nil
             pageController.setViewControllers([vc], direction: .forward, animated: false)
-            pageController.dataSource = context.coordinator
-            context.coordinator.lastRenderedPage = currentPage
+            pageController.dataSource = isPagingEnabled ? context.coordinator : nil
+            context.coordinator.lastRenderedPage = identity
             didSetViewControllers = true
+            if currentPage != identity {
+                currentPage = identity
+            }
         }
 
         let contentChanged = context.coordinator.lastContentStamp != contentStamp
@@ -78,6 +97,15 @@ struct RTLMushafPager: UIViewControllerRepresentable {
         } else if contentChanged {
             context.coordinator.lastContentStamp = contentStamp
         }
+    }
+
+    private func normalizedIdentity(_ page: Int) -> Int {
+        MushafSpread.identityPage(
+            for: page,
+            totalPages: totalPages,
+            allowedPages: allowedPages,
+            showsSpread: showsSpread
+        )
     }
 
     private static func allowedPagesFingerprint(_ pages: [Int]?) -> String {
@@ -91,6 +119,7 @@ struct RTLMushafPager: UIViewControllerRepresentable {
         var lastMushafReloadToken: UUID
         var lastContentStamp: Int
         var lastAllowedPagesFingerprint: String
+        var lastShowsSpread: Bool
 
         init(_ parent: RTLMushafPager) {
             self.parent = parent
@@ -98,20 +127,27 @@ struct RTLMushafPager: UIViewControllerRepresentable {
             self.lastMushafReloadToken = parent.mushafReloadToken
             self.lastContentStamp = parent.contentStamp
             self.lastAllowedPagesFingerprint = RTLMushafPager.allowedPagesFingerprint(parent.allowedPages)
+            self.lastShowsSpread = parent.showsSpread
         }
 
         func pageRootView(for page: Int) -> AnyView {
             AnyView(
                 parent.pageContent(page)
-                    .id("\(parent.mushafReloadToken.uuidString)-\(parent.mushafID)-\(page)-\(parent.contentStamp)")
+                    .id("\(parent.mushafReloadToken.uuidString)-\(parent.mushafID)-\(page)-\(parent.showsSpread)-\(parent.contentStamp)")
             )
         }
 
         func controller(for page: Int) -> UIViewController? {
-            guard page >= 1, page <= parent.totalPages else { return nil }
-            let host = UIHostingController(rootView: pageRootView(for: page))
+            let identity = MushafSpread.identityPage(
+                for: page,
+                totalPages: parent.totalPages,
+                allowedPages: parent.allowedPages,
+                showsSpread: parent.showsSpread
+            )
+            guard identity >= 1, identity <= parent.totalPages else { return nil }
+            let host = UIHostingController(rootView: pageRootView(for: identity))
             host.view.backgroundColor = UIColor(parent.isDarkMode ? AppTheme.mushafDarkBackground : AppTheme.mushafBackground)
-            host.view.tag = page
+            host.view.tag = identity
             return host
         }
 
@@ -123,15 +159,13 @@ struct RTLMushafPager: UIViewControllerRepresentable {
         }
 
         func adjacentPage(from page: Int, forward: Bool) -> Int? {
-            if let allowed = parent.allowedPages {
-                guard let index = allowed.firstIndex(of: page) else { return nil }
-                let nextIndex = forward ? index + 1 : index - 1
-                guard allowed.indices.contains(nextIndex) else { return nil }
-                return allowed[nextIndex]
-            }
-            let next = forward ? page + 1 : page - 1
-            guard next >= 1, next <= parent.totalPages else { return nil }
-            return next
+            MushafSpread.adjacentIdentity(
+                from: page,
+                forward: forward,
+                totalPages: parent.totalPages,
+                allowedPages: parent.allowedPages,
+                showsSpread: parent.showsSpread
+            )
         }
 
         func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {

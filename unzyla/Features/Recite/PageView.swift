@@ -40,6 +40,9 @@ struct PageView: View {
     let isPaintInverted: Bool
     let sessionMarks: [Int: MistakeMarkType]
     let contentPushOffset: CGFloat
+    var fillsHalfSpread = false
+    /// When set in landscape, adds extra padding on the book-spine side of this page.
+    var gutterEdge: HorizontalEdge? = nil
     let onWordTap: (MushafWord) -> Void
     var onActiveWordFrameChange: ((CGRect?) -> Void)?
 
@@ -72,6 +75,17 @@ struct PageView: View {
 
     private var lineHeight: CGFloat { MushafTypography.lineHeight(mushafID: mushafID) }
 
+    private var outerPadding: CGFloat { fillsHalfSpread ? 10 : 2 }
+    private var spinePadding: CGFloat { fillsHalfSpread ? 22 : outerPadding }
+
+    private var leadingPadding: CGFloat {
+        gutterEdge == .leading ? spinePadding : outerPadding
+    }
+
+    private var trailingPadding: CGFloat {
+        gutterEdge == .trailing ? spinePadding : outerPadding
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(lineMetas.enumerated()), id: \.element.id) { index, meta in
@@ -80,11 +94,16 @@ struct PageView: View {
                 }
             }
         }
-        .frame(maxWidth: 600)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 8)
-        .padding(.bottom, 32)
-        .padding(.horizontal, 2)
+        .frame(maxWidth: fillsHalfSpread ? .infinity : 600)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: fillsHalfSpread ? nil : .infinity,
+            alignment: .top
+        )
+        .padding(.top, fillsHalfSpread ? 4 : 8)
+        .padding(.bottom, fillsHalfSpread ? 12 : 32)
+        .padding(.leading, leadingPadding)
+        .padding(.trailing, trailingPadding)
         .offset(y: -contentPushOffset)
         .animation(.easeInOut(duration: 0.22), value: contentPushOffset)
         .background(AppTheme.pageBackground(dark: isDarkMode))

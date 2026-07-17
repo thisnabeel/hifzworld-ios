@@ -4,34 +4,46 @@ struct MinVersionCheckResult {
     let blocked: Bool
     let minVersion: String?
     let installed: String?
+    let appStoreId: String?
 }
 
 enum GlobalConfigService {
-    private static let aswaatBundleID = "com.aswaat.app"
+    private static let hifzworldBundleID = "com.nabeel.hifzworld"
 
     static func installedVersion() -> String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
-    static func checkMinVersion(client: APIClient = .shared) async -> MinVersionCheckResult {
-        // min_ios_version applies to the production Aswaat app, not the separate unzyla build.
+    static func checkMinVersion(client: HifzworldAPIClient = .shared) async -> MinVersionCheckResult {
         let bundleID = Bundle.main.bundleIdentifier ?? ""
-        guard bundleID == aswaatBundleID else {
-            return MinVersionCheckResult(blocked: false, minVersion: nil, installed: installedVersion())
+        let installed = installedVersion()
+        guard bundleID == hifzworldBundleID else {
+            return MinVersionCheckResult(blocked: false, minVersion: nil, installed: installed, appStoreId: nil)
         }
 
         do {
-            let config = try await client.fetchGlobalConfig()
-            guard let min = config.minIosVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
+            let config: HifzworldAppConfig = try await client.get("/api/app_config", authorized: false)
+            let storeId = config.appStoreId?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let min = config.minAppVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !min.isEmpty
             else {
-                return MinVersionCheckResult(blocked: false, minVersion: nil, installed: installedVersion())
+                return MinVersionCheckResult(
+                    blocked: false,
+                    minVersion: nil,
+                    installed: installed,
+                    appStoreId: storeId.flatMap { $0.isEmpty ? nil : $0 }
+                )
             }
-            let installed = installedVersion()
             let blocked = Semver.isLessThan(installed, min)
-            return MinVersionCheckResult(blocked: blocked, minVersion: min, installed: installed)
+            return MinVersionCheckResult(
+                blocked: blocked,
+                minVersion: min,
+                installed: installed,
+                appStoreId: storeId.flatMap { $0.isEmpty ? nil : $0 }
+            )
         } catch {
-            return MinVersionCheckResult(blocked: false, minVersion: nil, installed: installedVersion())
+            // Fail open: don't brick the app offline or on API errors.
+            return MinVersionCheckResult(blocked: false, minVersion: nil, installed: installed, appStoreId: nil)
         }
     }
 }

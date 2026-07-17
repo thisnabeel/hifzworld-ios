@@ -2,11 +2,16 @@ import SwiftUI
 
 struct MushafTopBar: View {
     let currentPage: Int
+    var pageLabel: String?
     let selectedNarratorIDs: [String]
     let parentNarrators: [ParentNarrator]
     let onMenu: () -> Void
     let onSearch: () -> Void
     let onAddToBundle: () -> Void
+
+    private var displayedPageLabel: String {
+        pageLabel ?? "\(currentPage)"
+    }
 
     private var narratorPills: [NarratorChild] {
         selectedNarratorIDs
@@ -56,7 +61,7 @@ struct MushafTopBar: View {
             .layoutPriority(-1)
 
             HStack(spacing: 6) {
-                Text("Pg. \(currentPage)")
+                Text("Pg. \(displayedPageLabel)")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(.white)
 

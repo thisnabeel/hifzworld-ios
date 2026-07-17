@@ -84,30 +84,26 @@ struct ReviewSessionDTO: Codable, Identifiable, Hashable {
     let reciter: HifzworldUser?
     let listener: HifzworldUser?
     let status: String
+    let currentPage: Int?
+    let pageHidden: Bool?
     let videoRoomID: String?
     let startedAt: Date?
     let endedAt: Date?
-    let livekit: LiveKitCredentials?
     let markCount: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, status, reciter, listener, livekit
+        case id, status, reciter, listener
         case mushafBundleID = "mushaf_bundle_id"
         case bundleTitle = "bundle_title"
         case reciterID = "reciter_id"
         case listenerID = "listener_id"
+        case currentPage = "current_page"
+        case pageHidden = "page_hidden"
         case videoRoomID = "video_room_id"
         case startedAt = "started_at"
         case endedAt = "ended_at"
         case markCount = "mark_count"
     }
-}
-
-struct LiveKitCredentials: Codable, Hashable {
-    let url: String?
-    let token: String?
-    let room: String?
-    let note: String?
 }
 
 struct SessionMarkDTO: Codable, Identifiable, Hashable {
@@ -190,10 +186,18 @@ struct ReviewSessionContext: Equatable {
     let bundleServerID: UUID
     let role: Role
     let partnerName: String
-    let livekitURL: String?
-    let livekitToken: String?
 }
 
 struct APIErrorResponse: Codable {
     let error: String
+}
+
+struct HifzworldAppConfig: Codable {
+    let minAppVersion: String?
+    let appStoreId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case minAppVersion = "min_app_version"
+        case appStoreId = "app_store_id"
+    }
 }
