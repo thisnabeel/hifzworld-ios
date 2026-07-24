@@ -31,6 +31,12 @@ final class BundleStore {
         save()
     }
 
+    /// Removes bundles synced to a server account (owned or shared).
+    func removeSyncedBundles() {
+        bundles.removeAll { $0.serverID != nil }
+        save()
+    }
+
     func updateBundle(id: UUID, title: String, description: String) {
         guard let index = bundles.firstIndex(where: { $0.id == id }) else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)

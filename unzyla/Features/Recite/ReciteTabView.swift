@@ -10,6 +10,9 @@ struct ReciteTabView: View {
     @State private var activeWordScreenFrame: CGRect?
     @State private var versePanelTopY: CGFloat?
     @State private var showAppFeedbackSheet = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
 
     private var showsSpread: Bool {
         verticalSizeClass == .compact
@@ -283,6 +286,9 @@ struct ReciteTabView: View {
                         AuthService.shared.signOut()
                         viewModel.isDrawerOpen = false
                     },
+                    onDeleteAccount: {
+                        showDeleteAccountConfirm = true
+                    },
                     onClose: { viewModel.isDrawerOpen = false }
                 )
                 .frame(width: 280)
@@ -354,6 +360,22 @@ struct ReciteTabView: View {
         .sheet(isPresented: $showAppFeedbackSheet) {
             SendAppFeedbackSheet()
         }
+        .alert("Delete Account?", isPresented: $showDeleteAccountConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Account", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+        } message: {
+            Text("This permanently deletes your Hifz.World account and associated data on our servers. This cannot be undone.")
+        }
+        .alert("Couldn’t Delete Account", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK") { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -361,6 +383,20 @@ struct ReciteTabView: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .disabled(isDeletingAccount)
+    }
+
+    private func deleteAccount() async {
+        guard !isDeletingAccount else { return }
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+        do {
+            try await AuthService.shared.deleteAccount()
+            bundleStore.removeSyncedBundles()
+            viewModel.isDrawerOpen = false
+        } catch {
+            deleteAccountError = error.localizedDescription
         }
     }
 

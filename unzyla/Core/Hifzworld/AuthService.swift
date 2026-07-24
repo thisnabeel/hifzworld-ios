@@ -36,6 +36,14 @@ final class AuthService: NSObject {
         currentUser = nil
     }
 
+    /// Permanently deletes the server account and clears local auth state.
+    func deleteAccount() async throws {
+        try await api.delete("/api/users/me")
+        KeychainTokenStore.clear()
+        currentUser = nil
+        lastError = nil
+    }
+
     func signInWithApple() async {
         guard !isSigningIn else { return }
         isSigningIn = true

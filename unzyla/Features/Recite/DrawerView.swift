@@ -5,6 +5,7 @@ struct DrawerView: View {
     let onSettings: () -> Void
     let onSendFeedback: () -> Void
     let onSignOut: () -> Void
+    let onDeleteAccount: () -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -145,10 +146,23 @@ struct DrawerView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-            .padding(.top, 4)
+
+            Button(action: onDeleteAccount) {
+                Text("Delete Account")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.45))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Delete Account")
         }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .padding(.top, 4)
     }
 
     private func initials(for user: HifzworldUser) -> String {
