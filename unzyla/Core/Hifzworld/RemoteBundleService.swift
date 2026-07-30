@@ -41,7 +41,7 @@ struct RemoteBundleService {
     }
 
     func updateBundle(_ bundle: MushafBundle, mushafID: Int) async throws {
-        guard let serverID = bundle.serverID, !bundle.isShared else { return }
+        guard let serverID = bundle.serverID else { return }
         let body = UpdateBundleBody(
             title: bundle.title,
             description: bundle.description,
@@ -61,6 +61,10 @@ struct RemoteBundleService {
     func share(bundleServerID: UUID, email: String?) async throws -> BundleShareDTO {
         let body = ShareBundleBody(email: email, handle: nil)
         return try await api.post("/api/bundles/\(bundleServerID.uuidString.lowercased())/share", body: body)
+    }
+
+    func createInviteLink(bundleServerID: UUID) async throws -> DeckInviteDTO {
+        try await api.post("/api/bundles/\(bundleServerID.uuidString.lowercased())/invite_link")
     }
 
     func pendingShares() async throws -> [BundleShareDTO] {

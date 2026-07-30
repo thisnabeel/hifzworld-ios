@@ -4,6 +4,7 @@ struct BundleMushafSegmentBar: View {
     let session: BundleMushafSession
     let onSelect: (Int) -> Void
     let onExit: () -> Void
+    var showsExit: Bool = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -16,14 +17,14 @@ struct BundleMushafSegmentBar: View {
                             }
 
                             HStack(spacing: 6) {
-                                Text(group.surahTitle)
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-
                                 ForEach(Array(group.pages.enumerated()), id: \.element) { offset, page in
                                     let flatIndex = group.startIndex + offset
-                                    pageChip(page: page, flatIndex: flatIndex)
+                                    pageChip(
+                                        page: page,
+                                        flatIndex: flatIndex,
+                                        surahTitle: group.surahTitle,
+                                        isGroupLead: offset == 0
+                                    )
                                 }
                             }
                             .padding(.horizontal, 8)
@@ -39,25 +40,30 @@ struct BundleMushafSegmentBar: View {
                 .onChange(of: session.currentIndex) { _, _ in
                     scrollToActive(in: proxy, animated: true)
                 }
+                .onChange(of: session.groups.map(\.id)) { _, _ in
+                    scrollToActive(in: proxy, animated: true)
+                }
             }
 
-            Rectangle()
-                .fill(Color(.separator))
-                .frame(width: 1, height: 24)
+            if showsExit {
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(width: 1, height: 24)
 
-            Button(action: onExit) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
+                Button(action: onExit) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Exit deck mode")
             }
-            .accessibilityLabel("Exit bundle mode")
         }
         .environment(\.layoutDirection, .rightToLeft)
         .frame(height: 44)
         .background(Color(.secondarySystemBackground))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(session.title) bundle navigation")
+        .accessibilityLabel("\(session.title) deck navigation")
     }
 
     private var segmentDivider: some View {
@@ -67,14 +73,21 @@ struct BundleMushafSegmentBar: View {
             .padding(.horizontal, 4)
     }
 
-    private func pageChip(page: Int, flatIndex: Int) -> some View {
+    private func pageChip(
+        page: Int,
+        flatIndex: Int,
+        surahTitle: String,
+        isGroupLead: Bool
+    ) -> some View {
         let isActive = flatIndex == session.currentIndex
+        let showsSurah = isActive || isGroupLead
+        let label = showsSurah ? "\(page) \(surahTitle)" : "\(page)"
 
         return Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             onSelect(flatIndex)
         } label: {
-            Text("\(page)")
+            Text(label)
                 .font(.caption.weight(isActive ? .semibold : .regular))
                 .foregroundStyle(isActive ? .white : .primary)
                 .padding(.horizontal, 10)
@@ -84,7 +97,7 @@ struct BundleMushafSegmentBar: View {
         }
         .buttonStyle(.plain)
         .id(flatIndex)
-        .accessibilityLabel("Page \(page)")
+        .accessibilityLabel(showsSurah ? "Page \(page), \(surahTitle)" : "Page \(page)")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 

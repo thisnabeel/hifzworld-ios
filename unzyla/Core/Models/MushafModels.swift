@@ -114,6 +114,13 @@ enum MushafID: Int, CaseIterable, Identifiable {
         }
     }
 
+    var subtitle: String {
+        switch self {
+        case .indoPak: return "South Asian style · 13 lines per page"
+        case .uthmani: return "Madinah style · 15 lines per page"
+        }
+    }
+
     var maxLines: Int {
         switch self {
         case .indoPak: return 13

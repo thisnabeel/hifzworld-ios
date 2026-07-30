@@ -11,9 +11,9 @@ struct AddPageToBundleSheet: View {
             Group {
                 if bundleStore.bundles.isEmpty {
                     ContentUnavailableView(
-                        "No Bundles",
+                        "No Decks",
                         systemImage: "square.stack.3d.up",
-                        description: Text("Create a bundle first, then add page \(currentPage).")
+                        description: Text("Create a deck first, then add page \(currentPage).")
                     )
                 } else {
                     List(bundleStore.bundles) { bundle in
@@ -52,14 +52,14 @@ struct AddPageToBundleSheet: View {
                     }
                 }
             }
-            .navigationTitle("Add to Bundle")
+            .navigationTitle("Add to Deck")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("New Bundle", action: onCreateBundle)
+                    Button("New Deck", action: onCreateBundle)
                 }
             }
         }

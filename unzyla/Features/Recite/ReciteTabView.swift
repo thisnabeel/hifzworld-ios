@@ -10,9 +10,11 @@ struct ReciteTabView: View {
     @State private var activeWordScreenFrame: CGRect?
     @State private var versePanelTopY: CGFloat?
     @State private var showAppFeedbackSheet = false
+    @State private var showEditHandleSheet = false
     @State private var showDeleteAccountConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
+    @Bindable private var reviewPlayer = DeckRecordingPlayer.shared
 
     private var showsSpread: Bool {
         verticalSizeClass == .compact
@@ -26,12 +28,23 @@ struct ReciteTabView: View {
         viewModel.hasPaintedWordsOnVisiblePages
     }
 
-    /// Full paint options when actively painting or visible pages have paints.
+    /// Full paint options when actively painting, visible pages have paints, or reviewing feedback.
     private var shouldShowPaintTools: Bool {
-        viewModel.isPaintMode || hasPaintOnVisiblePages
+        viewModel.isPaintMode || hasPaintOnVisiblePages || viewModel.isViewingFeedbackMarks
     }
 
-    /// Bottom chrome: review tools, paint tools, or landscape tabs.
+    private var hasViewableMarks: Bool {
+        hasPaintOnVisiblePages || viewModel.hasFeedbackMarksOnVisiblePages || viewModel.isViewingFeedbackMarks
+    }
+
+    /// Audio bar replaces paint tools whenever a recording is active on Mushaf.
+    /// Keep this broad to avoid device-specific timing races between
+    /// deck session activation and player state updates.
+    private var showsRecordingPlaybackChrome: Bool {
+        reviewPlayer.isActive
+    }
+
+    /// Bottom chrome: review tools, paint tools, feedback viewing tools, or landscape tabs.
     private var shouldShowBottomChrome: Bool {
         viewModel.isReviewListener || shouldShowPaintTools || showsSpread
     }
@@ -68,6 +81,7 @@ struct ReciteTabView: View {
         hasher.combine(viewModel.arePaintedWordsVisible)
         hasher.combine(viewModel.isPaintInverted)
         hasher.combine(viewModel.sessionMarks)
+        hasher.combine(viewModel.isViewingFeedbackMarks)
         hasher.combine(viewModel.isMarkingMode)
         hasher.combine(viewModel.pageHidden)
         hasher.combine(viewModel.activeWordID)
@@ -83,232 +97,9 @@ struct ReciteTabView: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            VStack(spacing: 0) {
-                MushafTopBar(
-                    currentPage: viewModel.currentPage,
-                    pageLabel: showsSpread ? viewModel.activeSpread.displayLabel : nil,
-                    selectedNarratorIDs: viewModel.selectedNarratorIDs,
-                    parentNarrators: viewModel.parentNarrators,
-                    onMenu: { viewModel.isDrawerOpen = true },
-                    onSearch: {
-                        goPageField = String(viewModel.currentPage)
-                        viewModel.isGoToPageOpen = true
-                    },
-                    onAddToBundle: { viewModel.isAddToBundleOpen = true }
-                )
-
-                if let reviewSession = viewModel.reviewSession {
-                    ReviewSessionBanner(
-                        partnerName: reviewSession.partnerName,
-                        role: reviewSession.role,
-                        isMarkingMode: viewModel.isMarkingMode,
-                        activeMarkType: viewModel.activeMarkType,
-                        pageHidden: viewModel.pageHidden,
-                        onToggleMarking: { viewModel.toggleMarkingMode() },
-                        onSelectMarkType: { viewModel.setActiveMarkType($0) },
-                        onTogglePageHidden: { viewModel.togglePageHidden() },
-                        onEnd: { Task { await viewModel.endReviewSession() } }
-                    )
-                }
-
-                ZStack {
-                    AppTheme.pageBackground(dark: viewModel.isDarkMode)
-                    if viewModel.isLoading || viewModel.isMushafSwitching {
-                        ProgressView(viewModel.isMushafSwitching ? "Loading mushaf…" : "Loading mushaf…")
-                    } else {
-                        RTLMushafPager(
-                            currentPage: Binding(
-                                get: { viewModel.currentPage },
-                                set: { viewModel.onPageChanged($0) }
-                            ),
-                            mushafID: viewModel.mushafID,
-                            mushafReloadToken: viewModel.mushafReloadToken,
-                            totalPages: viewModel.totalPages,
-                            allowedPages: viewModel.bundleSession?.pages,
-                            isDarkMode: viewModel.isDarkMode,
-                            contentStamp: mushafContentStamp,
-                            isPagingEnabled: viewModel.isReviewPagingEnabled,
-                            showsSpread: showsSpread
-                        ) { identityPage in
-                            AnyView(
-                                spreadOrPageContent(identityPage: identityPage)
-                            )
-                        }
-                        .id("\(viewModel.mushafReloadToken)-\(showsSpread)")
-                    }
-
-                    if viewModel.isReviewActive, !viewModel.isReviewListener, viewModel.pageHidden {
-                        Color(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : AppTheme.mushafBackground)
-                            .overlay {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "eye.slash.fill")
-                                        .font(.system(size: 28, weight: .medium))
-                                    Text("Page hidden by listener")
-                                        .font(.headline)
-                                    Text("They’ll reveal it when you’re ready.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .foregroundStyle(viewModel.isDarkMode ? .white : .primary)
-                            }
-                            .transition(.opacity)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .background(reciteShellBackground)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    if let session = viewModel.bundleSession {
-                        BundleMushafSegmentBar(
-                            session: session,
-                            onSelect: { viewModel.goToBundlePage(at: $0) },
-                            onExit: {
-                                if viewModel.isReviewActive {
-                                    Task { await viewModel.endReviewSession() }
-                                } else {
-                                    viewModel.exitBundleMushaf()
-                                }
-                            }
-                        )
-                        .frame(height: showsSpread ? 34 : 44)
-                    }
-                    if !showingVerseOverlay {
-                        if shouldShowBottomChrome {
-                            ReciteBottomChrome(
-                                isPaintMode: viewModel.isPaintMode,
-                                isMarkingMode: viewModel.isMarkingMode,
-                                isReviewListener: viewModel.isReviewListener,
-                                pageHidden: viewModel.pageHidden,
-                                isCompactLandscape: showsSpread,
-                                isDarkMode: viewModel.isDarkMode,
-                                showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
-                                selectedTab: $selectedTab,
-                                activeMarkType: viewModel.activeMarkType,
-                                onToggleMarkingMode: { viewModel.toggleMarkingMode() },
-                                onSelectMarkType: { viewModel.setActiveMarkType($0) },
-                                onTogglePageHidden: { viewModel.togglePageHidden() },
-                                selectedVerse: nil,
-                                activePaintStyle: viewModel.activePaintStyle,
-                                arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
-                                isPaintInverted: viewModel.isPaintInverted,
-                                hasPaintedWords: hasPaintOnVisiblePages,
-                                onTogglePaintMode: { viewModel.togglePaintMode() },
-                                onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
-                                onSelectPaintStyle: viewModel.setActivePaintStyle,
-                                onTogglePaintInverted: { viewModel.togglePaintInverted() },
-                                onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
-                            )
-                        } else {
-                            paintModeEntryButton
-                                .padding(.leading, 16)
-                                .padding(.vertical, 10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-                .background(bottomBarBackground)
-                .overlay(alignment: .top) {
-                    if !shouldShowBottomChrome || showingVerseOverlay {
-                        Rectangle()
-                            .fill(viewModel.isDarkMode ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-                            .frame(height: 1 / UIScreen.main.scale)
-                    }
-                }
-            }
-            .toolbar(showsSpread ? .hidden : .automatic, for: .tabBar)
-            .overlay(alignment: .bottom) {
-                if showingVerseOverlay {
-                    ReciteBottomChrome(
-                        isPaintMode: false,
-                        isMarkingMode: viewModel.isMarkingMode,
-                        isReviewListener: viewModel.isReviewListener,
-                        pageHidden: viewModel.pageHidden,
-                        isCompactLandscape: showsSpread,
-                        isDarkMode: viewModel.isDarkMode,
-                        showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
-                        selectedTab: $selectedTab,
-                        activeMarkType: viewModel.activeMarkType,
-                        onToggleMarkingMode: { viewModel.toggleMarkingMode() },
-                        onSelectMarkType: { viewModel.setActiveMarkType($0) },
-                        onTogglePageHidden: { viewModel.togglePageHidden() },
-                        selectedVerse: viewModel.selectedVerse,
-                        activePaintStyle: viewModel.activePaintStyle,
-                        arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
-                        isPaintInverted: viewModel.isPaintInverted,
-                        hasPaintedWords: hasPaintOnVisiblePages,
-                        onTogglePaintMode: { viewModel.togglePaintMode() },
-                        onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
-                        onSelectPaintStyle: viewModel.setActivePaintStyle,
-                        onTogglePaintInverted: { viewModel.togglePaintInverted() },
-                        onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
-                    )
-                    .background(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : Color.white)
-                    .shadow(color: .black.opacity(0.14), radius: 16, y: -6)
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: VersePanelTopPreferenceKey.self,
-                                value: geo.frame(in: .global).minY
-                            )
-                        }
-                    )
-                }
-            }
-            .onPreferenceChange(VersePanelTopPreferenceKey.self) { topY in
-                versePanelTopY = topY
-            }
-            .onChange(of: viewModel.selectedVerse) { _, newValue in
-                if newValue == nil {
-                    activeWordScreenFrame = nil
-                    versePanelTopY = nil
-                }
-            }
-            .onChange(of: viewModel.activeWordID) { _, _ in
-                activeWordScreenFrame = nil
-            }
-
-            if viewModel.isDrawerOpen {
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-                    .onTapGesture { viewModel.isDrawerOpen = false }
-                DrawerView(
-                    user: AuthService.shared.currentUser,
-                    onSettings: {
-                        viewModel.isDrawerOpen = false
-                        viewModel.isSettingsOpen = true
-                    },
-                    onSendFeedback: {
-                        viewModel.isDrawerOpen = false
-                        showAppFeedbackSheet = true
-                    },
-                    onSignOut: {
-                        AuthService.shared.signOut()
-                        viewModel.isDrawerOpen = false
-                    },
-                    onDeleteAccount: {
-                        showDeleteAccountConfirm = true
-                    },
-                    onClose: { viewModel.isDrawerOpen = false }
-                )
-                .frame(width: 280)
-                .transition(.move(edge: .leading))
-            }
-
-            if viewModel.isSidebarOpen {
-                HStack {
-                    Spacer()
-                    VariationSidebar(
-                        variations: viewModel.allCachedVariations,
-                        mushafID: viewModel.mushafID,
-                        onSelect: { variation in
-                            viewModel.activeWordID = variation.wordID
-                        },
-                        onClose: { viewModel.isSidebarOpen = false }
-                    )
-                }
-                .transition(.move(edge: .trailing))
-            }
+            reciteMainColumn
+            drawerOverlay
+            sidebarOverlay
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.isDrawerOpen)
         .animation(.easeInOut(duration: 0.25), value: viewModel.isSidebarOpen)
@@ -341,7 +132,7 @@ struct ReciteTabView: View {
                 juzSegments: viewModel.juzSegments,
                 surahSegments: viewModel.surahSegments,
                 totalPages: viewModel.totalPages,
-                onGo: viewModel.goToPage
+                onGo: { viewModel.goToPage($0) }
             )
         }
         .sheet(isPresented: Binding(
@@ -359,6 +150,9 @@ struct ReciteTabView: View {
         }
         .sheet(isPresented: $showAppFeedbackSheet) {
             SendAppFeedbackSheet()
+        }
+        .sheet(isPresented: $showEditHandleSheet) {
+            EditHandleSheet(auth: AuthService.shared)
         }
         .alert("Delete Account?", isPresented: $showDeleteAccountConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -385,6 +179,255 @@ struct ReciteTabView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .disabled(isDeletingAccount)
+    }
+
+    private var reciteMainColumn: some View {
+        VStack(spacing: 0) {
+            mushafTopBar
+            reviewBanner
+            mushafPagerStack
+        }
+        .background(reciteShellBackground)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomChromeStack
+        }
+        .toolbar(showsSpread ? .hidden : .automatic, for: .tabBar)
+        .overlay(alignment: .bottom) {
+            verseOverlayChrome
+        }
+        .onPreferenceChange(VersePanelTopPreferenceKey.self) { topY in
+            versePanelTopY = topY
+        }
+        .onChange(of: viewModel.selectedVerse) { _, newValue in
+            if newValue == nil {
+                activeWordScreenFrame = nil
+                versePanelTopY = nil
+            }
+        }
+        .onChange(of: viewModel.activeWordID) { _, _ in
+            activeWordScreenFrame = nil
+        }
+    }
+
+    private var mushafTopBar: some View {
+        MushafTopBar(
+            currentPage: viewModel.currentPage,
+            pageLabel: showsSpread ? viewModel.activeSpread.displayLabel : nil,
+            selectedNarratorIDs: viewModel.selectedNarratorIDs,
+            parentNarrators: viewModel.parentNarrators,
+            onMenu: { viewModel.isDrawerOpen = true },
+            onSearch: {
+                goPageField = String(viewModel.currentPage)
+                viewModel.isGoToPageOpen = true
+            },
+            onAddToBundle: {
+                guard !viewModel.isDeckRecordingSession else { return }
+                viewModel.isAddToBundleOpen = true
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var reviewBanner: some View {
+        if let reviewSession = viewModel.reviewSession {
+            ReviewSessionBanner(
+                partnerName: reviewSession.partnerName,
+                role: reviewSession.role,
+                isMarkingMode: viewModel.isMarkingMode,
+                activeMarkType: viewModel.activeMarkType,
+                pageHidden: viewModel.pageHidden,
+                onToggleMarking: { viewModel.toggleMarkingMode() },
+                onSelectMarkType: { viewModel.setActiveMarkType($0) },
+                onTogglePageHidden: { viewModel.togglePageHidden() },
+                onEnd: { Task { await viewModel.endReviewSession() } }
+            )
+        }
+    }
+
+    private var mushafPagerStack: some View {
+        ZStack {
+            AppTheme.pageBackground(dark: viewModel.isDarkMode)
+            if viewModel.isLoading || viewModel.isMushafSwitching {
+                ProgressView(viewModel.isMushafSwitching ? "Loading mushaf…" : "Loading mushaf…")
+            } else {
+                RTLMushafPager(
+                    currentPage: Binding(
+                        get: { viewModel.currentPage },
+                        set: { viewModel.onPageChanged($0) }
+                    ),
+                    mushafID: viewModel.mushafID,
+                    mushafReloadToken: viewModel.mushafReloadToken,
+                    totalPages: viewModel.totalPages,
+                    allowedPages: viewModel.bundleSession?.pages,
+                    isDarkMode: viewModel.isDarkMode,
+                    contentStamp: mushafContentStamp,
+                    isPagingEnabled: viewModel.isReviewPagingEnabled,
+                    showsSpread: showsSpread
+                ) { identityPage in
+                    AnyView(spreadOrPageContent(identityPage: identityPage))
+                }
+                .id("\(viewModel.mushafReloadToken)-\(showsSpread)")
+            }
+
+            if viewModel.isReviewActive, !viewModel.isReviewListener, viewModel.pageHidden {
+                pageHiddenOverlay
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var pageHiddenOverlay: some View {
+        Color(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : AppTheme.mushafBackground)
+            .overlay {
+                VStack(spacing: 8) {
+                    Image(systemName: "eye.slash.fill")
+                        .font(.system(size: 28, weight: .medium))
+                    Text("Page hidden by listener")
+                        .font(.headline)
+                    Text("They’ll reveal it when you’re ready.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(viewModel.isDarkMode ? .white : .primary)
+            }
+            .transition(.opacity)
+    }
+
+    private var bottomChromeStack: some View {
+        VStack(spacing: 0) {
+            if let session = viewModel.bundleSession {
+                BundleMushafSegmentBar(
+                    session: session,
+                    onSelect: { viewModel.goToBundlePage(at: $0) },
+                    onExit: {
+                        if viewModel.isReviewActive {
+                            Task { await viewModel.endReviewSession() }
+                        } else {
+                            viewModel.exitBundleMushaf()
+                        }
+                    },
+                    showsExit: !viewModel.isDeckRecordingSession
+                )
+                .frame(height: showsSpread ? 34 : 44)
+            }
+            if showsRecordingPlaybackChrome {
+                DeckRecordingMiniPlayer(player: reviewPlayer)
+            } else if !showingVerseOverlay {
+                if shouldShowBottomChrome {
+                    paintToolsChrome(selectedVerse: nil)
+                } else {
+                    paintModeEntryButton
+                        .padding(.leading, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .background(bottomBarBackground)
+        .overlay(alignment: .top) {
+            if !showsRecordingPlaybackChrome, (!shouldShowBottomChrome || showingVerseOverlay) {
+                Rectangle()
+                    .fill(viewModel.isDarkMode ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
+                    .frame(height: 1 / UIScreen.main.scale)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var verseOverlayChrome: some View {
+        if showingVerseOverlay {
+            paintToolsChrome(selectedVerse: viewModel.selectedVerse)
+                .background(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : Color.white)
+                .shadow(color: .black.opacity(0.14), radius: 16, y: -6)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: VersePanelTopPreferenceKey.self,
+                            value: geo.frame(in: .global).minY
+                        )
+                    }
+                )
+        }
+    }
+
+    private func paintToolsChrome(selectedVerse: SelectedVerseDetail?) -> some View {
+        ReciteBottomChrome(
+            isPaintMode: selectedVerse == nil ? viewModel.isPaintMode : false,
+            isMarkingMode: viewModel.isMarkingMode,
+            isReviewListener: viewModel.isReviewListener,
+            pageHidden: viewModel.pageHidden,
+            isCompactLandscape: showsSpread,
+            isDarkMode: viewModel.isDarkMode,
+            showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
+            allowsPainting: !viewModel.isViewingFeedbackMarks,
+            selectedTab: $selectedTab,
+            activeMarkType: viewModel.activeMarkType,
+            onToggleMarkingMode: { viewModel.toggleMarkingMode() },
+            onSelectMarkType: { viewModel.setActiveMarkType($0) },
+            onTogglePageHidden: { viewModel.togglePageHidden() },
+            selectedVerse: selectedVerse,
+            activePaintStyle: viewModel.activePaintStyle,
+            arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
+            isPaintInverted: viewModel.isPaintInverted,
+            hasPaintedWords: hasViewableMarks,
+            onTogglePaintMode: { viewModel.togglePaintMode() },
+            onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
+            onSelectPaintStyle: viewModel.setActivePaintStyle,
+            onTogglePaintInverted: { viewModel.togglePaintInverted() },
+            onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
+        )
+    }
+
+    @ViewBuilder
+    private var drawerOverlay: some View {
+        if viewModel.isDrawerOpen {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+                .onTapGesture { viewModel.isDrawerOpen = false }
+            DrawerView(
+                user: AuthService.shared.currentUser,
+                onSettings: {
+                    viewModel.isDrawerOpen = false
+                    viewModel.isSettingsOpen = true
+                },
+                onSendFeedback: {
+                    viewModel.isDrawerOpen = false
+                    showAppFeedbackSheet = true
+                },
+                onEditHandle: {
+                    viewModel.isDrawerOpen = false
+                    showEditHandleSheet = true
+                },
+                onSignOut: {
+                    AuthService.shared.signOut()
+                    viewModel.isDrawerOpen = false
+                },
+                onDeleteAccount: {
+                    showDeleteAccountConfirm = true
+                },
+                onClose: { viewModel.isDrawerOpen = false }
+            )
+            .frame(width: 280)
+            .transition(.move(edge: .leading))
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarOverlay: some View {
+        if viewModel.isSidebarOpen {
+            HStack {
+                Spacer()
+                VariationSidebar(
+                    variations: viewModel.allCachedVariations,
+                    mushafID: viewModel.mushafID,
+                    onSelect: { variation in
+                        viewModel.activeWordID = variation.wordID
+                    },
+                    onClose: { viewModel.isSidebarOpen = false }
+                )
+            }
+            .transition(.move(edge: .trailing))
+        }
     }
 
     private func deleteAccount() async {

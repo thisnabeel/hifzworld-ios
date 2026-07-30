@@ -1,6 +1,6 @@
 import Foundation
 
-enum WordPaintStyle: Hashable {
+enum WordPaintStyle: String, Hashable, Codable {
     case blackout
     case highlight
 }

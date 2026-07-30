@@ -73,6 +73,7 @@ struct MushafTopBar: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Add to Deck")
 
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")

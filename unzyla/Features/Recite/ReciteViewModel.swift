@@ -7,9 +7,11 @@ struct BundleMushafSession: Equatable {
     let title: String
     let pages: [Int]
     var currentIndex: Int
+    /// Display grouping overrides (boundary pages that belong with the next/previous surah).
+    var pageSurahOverrides: [Int: Int] = [:]
 
     var groups: [BundlePageGroup] {
-        BundlePageGrouping.groups(for: pages)
+        BundlePageGrouping.groups(for: pages, surahOverrides: pageSurahOverrides)
     }
 }
 
@@ -60,21 +62,31 @@ final class ReciteViewModel {
     var traversalIndex = 0
 
     var isPaintMode = false
-    var activePaintStyle: WordPaintStyle = .blackout
+    var activePaintStyle: WordPaintStyle = .highlight
     var paintedWords: [Int: WordPaintStyle] = [:]
     var arePaintedWordsVisible = true
     var isPaintInverted = false
+    /// Prior paint canvas stashed while a deck recording is in progress.
+    private var recordingPaintSnapshot: [Int: WordPaintStyle]?
+    private(set) var isDeckRecordingSession = false
+    /// Prior paint canvas stashed while reviewing a saved take's marks.
+    private var reviewPaintSnapshot: [Int: WordPaintStyle]?
+    private(set) var isReviewingDeckRecording = false
 
     var reviewSession: ReviewSessionContext?
     var isMarkingMode = false
     var activeMarkType: MistakeMarkType = .tajweed
     var sessionMarks: [Int: MistakeMarkType] = [:]
     var sessionMarkIDs: [Int: UUID] = [:]
+    /// Past feedback review: show listener marks on the deck Mushaf (read-only).
+    var isViewingFeedbackMarks = false
     var pageHidden = false
     /// When true (landscape), navigation uses odd-right / even-left spreads.
     var prefersSpreadLayout = false
     private var reviewPollTask: Task<Void, Never>?
     private var isApplyingRemotePage = false
+    /// Ignores stale pager callbacks while swapping from one active deck to another.
+    private var isActivatingBundle = false
 
     var isReviewListener: Bool { reviewSession?.role == .listener }
     var isReviewActive: Bool { reviewSession != nil }
@@ -108,14 +120,35 @@ final class ReciteViewModel {
         return false
     }
 
-    /// Reciter sees listener marks as blackout; listener keeps normal paint + mark highlights.
+    /// Reciter sees listener marks as blackout; feedback review maps marks to the active paint style.
     var displayPaintedWords: [Int: WordPaintStyle] {
+        if isViewingFeedbackMarks {
+            var map: [Int: WordPaintStyle] = [:]
+            for wordID in sessionMarks.keys {
+                map[wordID] = activePaintStyle
+            }
+            return map
+        }
         guard isReviewActive, !isReviewListener else { return paintedWords }
         var map = paintedWords
         for wordID in sessionMarks.keys {
             map[wordID] = .blackout
         }
         return map
+    }
+
+    /// Whether feedback marks (or paints) exist on the currently visible page(s).
+    var hasFeedbackMarksOnVisiblePages: Bool {
+        guard isViewingFeedbackMarks, !sessionMarks.isEmpty else { return false }
+        for pageNumber in visiblePageNumbers {
+            guard let page = pages[pageNumber] else { continue }
+            for line in page.lines {
+                for word in line.words where sessionMarks[word.id] != nil {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     var iosUpdateWall: MinVersionCheckResult?
@@ -278,19 +311,196 @@ final class ReciteViewModel {
 
     func enterBundleMushaf(bundle: MushafBundle, startingPage: Int) {
         guard !bundle.pageNumbers.isEmpty else { return }
+        if isDeckRecordingSession,
+           let active = DeckAudioRecorder.shared.activeDeckID,
+           active != bundle.id {
+            return
+        }
+
+        let previousDeckID = bundleSession?.bundleID
+        let isSwitchingDeck = previousDeckID != nil && previousDeckID != bundle.id
+
+        if isViewingFeedbackMarks, isSwitchingDeck || previousDeckID != bundle.id {
+            clearFeedbackReviewMarks()
+        }
+        if isSwitchingDeck {
+            clearDeckRecordingReviewMarks()
+            if let previousDeckID {
+                DeckRecordingPlayer.shared.stopIfPlaying(deckID: previousDeckID)
+            }
+            mushafReloadToken = UUID()
+        }
+
         let index = bundle.pageNumbers.firstIndex(of: startingPage) ?? 0
+        let targetPage = bundle.pageNumbers[index]
+
+        isActivatingBundle = true
         bundleSession = BundleMushafSession(
             bundleID: bundle.id,
             title: bundle.title,
             pages: bundle.pageNumbers,
-            currentIndex: index
+            currentIndex: index,
+            pageSurahOverrides: bundle.pageSurahOverrides
         )
-        goToPage(bundle.pageNumbers[index])
+        goToPage(targetPage, force: true)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            if bundleSession?.bundleID == bundle.id {
+                isActivatingBundle = false
+            }
+        }
     }
 
     func exitBundleMushaf() {
+        guard !isDeckRecordingSession else { return }
+        let deckID = bundleSession?.bundleID
         bundleSession = nil
+        isActivatingBundle = false
+        clearDeckRecordingReviewMarks()
+        clearFeedbackReviewMarks()
+        if let deckID {
+            DeckRecordingPlayer.shared.stopIfPlaying(deckID: deckID)
+        }
     }
+
+    /// Opens the deck, clears paint for a fresh slate, and enables paint mode.
+    func beginDeckRecordingSession(bundle: MushafBundle) {
+        clearDeckRecordingReviewMarks()
+        clearFeedbackReviewMarks()
+        recordingPaintSnapshot = paintedWords
+        paintedWords = [:]
+        isPaintInverted = false
+        arePaintedWordsVisible = true
+        activePaintStyle = .highlight
+        isPaintMode = true
+        selectedVerse = nil
+        isDeckRecordingSession = true
+        let startPage = bundle.pageNumbers.first ?? currentPage
+        enterBundleMushaf(bundle: bundle, startingPage: startPage)
+    }
+
+    /// Captures marks from the live canvas and restores the prior paint slate.
+    @discardableResult
+    func endDeckRecordingSession() -> [Int: WordPaintStyle] {
+        let captured = paintedWords
+        paintedWords = recordingPaintSnapshot ?? [:]
+        recordingPaintSnapshot = nil
+        isDeckRecordingSession = false
+        isPaintMode = false
+        return captured
+    }
+
+    /// Loads a saved take's marks onto the deck Mushaf for review.
+    func reviewDeckRecording(_ recording: DeckRecording, bundle: MushafBundle) {
+        guard !isDeckRecordingSession else { return }
+        clearFeedbackReviewMarks()
+        if !isReviewingDeckRecording {
+            reviewPaintSnapshot = paintedWords
+            isReviewingDeckRecording = true
+        }
+        let startPage = bundle.pageNumbers.first ?? 1
+        enterBundleMushaf(bundle: bundle, startingPage: startPage)
+        paintedWords = recording.paintedWords
+        arePaintedWordsVisible = true
+        isPaintMode = false
+        isPaintInverted = false
+    }
+
+    /// Hides take marks when the deck review session ends; restores personal paints.
+    func clearDeckRecordingReviewMarks() {
+        guard isReviewingDeckRecording else { return }
+        paintedWords = reviewPaintSnapshot ?? [:]
+        reviewPaintSnapshot = nil
+        isReviewingDeckRecording = false
+    }
+
+    /// Opens a past feedback session's deck with listener mistake marks highlighted.
+    func reviewFeedbackSession(_ session: FeedbackSessionDTO, bundle: MushafBundle) async {
+        guard !isDeckRecordingSession else { return }
+        clearDeckRecordingReviewMarks()
+        clearFeedbackReviewMarks()
+        isPaintMode = false
+        isMarkingMode = false
+        arePaintedWordsVisible = true
+        isPaintInverted = false
+        activePaintStyle = .highlight
+        activeWordID = nil
+        selectedVerse = nil
+        verseTranslationTask?.cancel()
+
+        let startPage = session.marks.map(\.pageNumber).min()
+            ?? bundle.pageNumbers.first
+            ?? currentPage
+        enterBundleMushaf(bundle: bundle, startingPage: startPage)
+
+        let markPages = Set(session.marks.map(\.pageNumber)).union([startPage])
+        for page in markPages {
+            await loadPage(page)
+        }
+
+        #if DEBUG
+        if session.id == FeedbackSessionDTO.stubPreviewID {
+            sessionMarks = Self.previewFeedbackMarks(from: pages, pageNumbers: bundle.pageNumbers)
+        } else {
+            sessionMarks = Self.sessionMarkMap(from: session.marks)
+        }
+        #else
+        sessionMarks = Self.sessionMarkMap(from: session.marks)
+        #endif
+        isViewingFeedbackMarks = true
+
+        if let first = session.marks.sorted(by: { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }).first {
+            #if DEBUG
+            if session.id == FeedbackSessionDTO.stubPreviewID {
+                activeWordID = sessionMarks.keys.sorted().first
+            } else {
+                activeWordID = first.wordID
+            }
+            #else
+            activeWordID = first.wordID
+            #endif
+            if bundle.pageNumbers.contains(first.pageNumber) {
+                goToPage(first.pageNumber, force: true)
+            }
+        }
+    }
+
+    func clearFeedbackReviewMarks() {
+        guard isViewingFeedbackMarks else { return }
+        sessionMarks = [:]
+        sessionMarkIDs = [:]
+        isViewingFeedbackMarks = false
+        activeWordID = nil
+    }
+
+    private static func sessionMarkMap(from marks: [SessionMarkDTO]) -> [Int: MistakeMarkType] {
+        var map: [Int: MistakeMarkType] = [:]
+        for mark in marks {
+            map[mark.wordID] = MistakeMarkType(rawValue: mark.markType) ?? .other
+        }
+        return map
+    }
+
+    #if DEBUG
+    private static func previewFeedbackMarks(
+        from pages: [Int: MushafPage],
+        pageNumbers: [Int]
+    ) -> [Int: MistakeMarkType] {
+        let types: [MistakeMarkType] = [.tajweed, .hesitation, .pronunciation]
+        var map: [Int: MistakeMarkType] = [:]
+        var index = 0
+        for pageNumber in pageNumbers {
+            guard let page = pages[pageNumber], index < types.count else { continue }
+            for word in page.lines.flatMap(\.words).prefix(2) {
+                guard index < types.count else { break }
+                map[word.id] = types[index]
+                index += 1
+            }
+        }
+        return map
+    }
+    #endif
 
     func goToBundlePage(at index: Int) {
         if isReviewActive, !isReviewListener, !isApplyingRemotePage {
@@ -318,11 +528,16 @@ final class ReciteViewModel {
             bundleSession = session
             return
         }
+        // While swapping decks, the pager can still report the previous page once —
+        // don't tear down the newly activated deck.
+        if isActivatingBundle || isDeckRecordingSession {
+            return
+        }
         exitBundleMushaf()
     }
 
-    func goToPage(_ page: Int) {
-        if isReviewActive, !isReviewListener, !isApplyingRemotePage {
+    func goToPage(_ page: Int, force: Bool = false) {
+        if !force, isReviewActive, !isReviewListener, !isApplyingRemotePage {
             return
         }
         let clamped = min(max(page, 1), totalPages)
@@ -335,6 +550,9 @@ final class ReciteViewModel {
             )
             let inSpread = spread.pages.contains { session.pages.contains($0) }
             if !inSpread {
+                if isDeckRecordingSession || isActivatingBundle {
+                    return
+                }
                 exitBundleMushaf()
             }
         }
@@ -354,6 +572,9 @@ final class ReciteViewModel {
     }
 
     func onPageChanged(_ page: Int) {
+        if isActivatingBundle {
+            return
+        }
         if isReviewActive, !isReviewListener, !isApplyingRemotePage {
             return
         }
@@ -363,6 +584,19 @@ final class ReciteViewModel {
             allowedPages: bundleSession?.pages,
             showsSpread: prefersSpreadLayout
         )
+        // Ignore stale reports for pages outside the active deck while it's mounted.
+        if let session = bundleSession, !session.pages.contains(identity) {
+            let spread = MushafSpread.forDisplay(
+                containing: identity,
+                totalPages: totalPages,
+                allowedPages: session.pages,
+                showsSpread: prefersSpreadLayout
+            )
+            let inSpread = spread.pages.contains { session.pages.contains($0) }
+            if !inSpread {
+                return
+            }
+        }
         syncBundleIndex(with: identity)
         currentPage = identity
         Task {
@@ -520,7 +754,11 @@ final class ReciteViewModel {
     }
 
     func setMushafID(_ id: Int) async {
-        guard id != mushafID else { return }
+        guard id != mushafID else {
+            prefs.mushafID = id
+            prefs.hasChosenMushaf = true
+            return
+        }
 
         isMushafSwitching = true
         pages.removeAll()
@@ -528,7 +766,7 @@ final class ReciteViewModel {
         await pageCache.setMushaf(id)
 
         mushafID = id
-        prefs.mushafID = id
+        prefs.chooseMushaf(id)
         mushafReloadToken = UUID()
         activeWordID = nil
         traversalIndex = 0
@@ -583,6 +821,7 @@ final class ReciteViewModel {
     }
 
     func togglePaintMode() {
+        guard !isViewingFeedbackMarks else { return }
         isPaintMode.toggle()
         if isPaintMode {
             selectedVerse = nil
@@ -598,6 +837,11 @@ final class ReciteViewModel {
 
     func setActivePaintStyle(_ style: WordPaintStyle) {
         activePaintStyle = style
+        if isViewingFeedbackMarks {
+            // Feedback review: restyle marks only — do not enter paint mode.
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return
+        }
         isPaintMode = true
         selectedVerse = nil
         verseTranslationTask?.cancel()
@@ -682,6 +926,7 @@ final class ReciteViewModel {
         }
 
         if isPaintMode {
+            guard !isViewingFeedbackMarks else { return }
             var updated = paintedWords
             if updated[word.id] == activePaintStyle {
                 updated.removeValue(forKey: word.id)

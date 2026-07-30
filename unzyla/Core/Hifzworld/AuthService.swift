@@ -44,6 +44,11 @@ final class AuthService: NSObject {
         lastError = nil
     }
 
+    func updateHandle(_ handle: String) async throws {
+        let body = UpdateUserBody(handle: handle, displayName: nil)
+        currentUser = try await api.patch("/api/users/me", body: body)
+    }
+
     func signInWithApple() async {
         guard !isSigningIn else { return }
         isSigningIn = true
@@ -102,6 +107,16 @@ private struct AppleSignInBody: Encodable {
     }
 }
 
+private struct UpdateUserBody: Encodable {
+    let handle: String?
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case handle
+        case displayName = "display_name"
+    }
+}
+
 extension AuthService: ASAuthorizationControllerDelegate {
     nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         Task { @MainActor in
@@ -120,9 +135,11 @@ extension AuthService: ASAuthorizationControllerDelegate {
 
 extension AuthService: ASAuthorizationControllerPresentationContextProviding {
     nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
-        let window = windowScene?.windows.first { $0.isKeyWindow }
-        return window ?? ASPresentationAnchor()
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes
+            let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
+            let window = windowScene?.windows.first { $0.isKeyWindow }
+            return window ?? ASPresentationAnchor()
+        }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct CreateBundleSheet: View {
     @Binding var title: String
     @Binding var description: String
+    var navigationTitle: String = "New Deck"
     let onCreate: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -10,14 +11,14 @@ struct CreateBundleSheet: View {
         NavigationStack {
             Form {
                 Section("Title") {
-                    TextField("Bundle title", text: $title)
+                    TextField("Deck title", text: $title)
                 }
                 Section("Description") {
                     TextField("Optional description", text: $description, axis: .vertical)
                         .lineLimit(3...6)
                 }
             }
-            .navigationTitle("New Bundle")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

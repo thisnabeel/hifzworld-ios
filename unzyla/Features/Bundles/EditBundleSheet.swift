@@ -10,14 +10,14 @@ struct EditBundleSheet: View {
         NavigationStack {
             Form {
                 Section("Title") {
-                    TextField("Bundle title", text: $title)
+                    TextField("Deck title", text: $title)
                 }
                 Section("Description") {
                     TextField("Optional description", text: $description, axis: .vertical)
                         .lineLimit(3...6)
                 }
             }
-            .navigationTitle("Edit Bundle")
+            .navigationTitle("Edit Deck")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

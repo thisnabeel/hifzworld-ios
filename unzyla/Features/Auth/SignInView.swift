@@ -10,7 +10,7 @@ struct SignInView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.tint)
 
-            Text("Sign in to share bundles and review recitation")
+            Text("Sign in to share decks and join invites")
                 .font(.headline)
                 .multilineTextAlignment(.center)
 

@@ -1,6 +1,6 @@
 # Hifz.World — App Store Connect copy
 
-Paste these into **App Store → iOS App Version 1.0**. Character counts are under Apple’s limits.
+Paste these into **App Store → iOS App Version 1.0.1**. Character counts are under Apple’s limits.
 
 Replace anything in `[brackets]` before submit.
 
@@ -10,7 +10,7 @@ Replace anything in `[brackets]` before submit.
 *(max 170 — shown above the description when you set one)*
 
 ```
-Memorize with a partner. Build page bundles, share them, and get live Mushaf feedback while you recite — plus clear qirāʾāt comparison on every page.
+Memorize with a partner. Build page decks, share them, and get live Mushaf feedback while you recite — plus clear qirāʾāt comparison on every page.
 ```
 
 ---
@@ -32,13 +32,13 @@ COMPARE QIRĀʾĀT
 • Highlight variations as you study
 • Focus on what matters for your memorization
 
-BUNDLES FOR REVIEW
-• Save collections of Mushaf pages as bundles
-• Open a bundle in the Mushaf and move through only those pages
+DECKS FOR REVIEW
+• Save collections of Mushaf pages as decks
+• Open a deck in the Mushaf and move through only those pages
 • Perfect for juz’, surahs, or weak pages you need to strengthen
 
 RECITE WITH A LISTENER
-• Share a bundle with a teacher, friend, or family member
+• Share a deck with a teacher, friend, or family member
 • They follow along on the same pages while you recite
 • Listeners can mark mistakes on the Mushaf in real time
 • Review marks later in Feedback so you know what to fix
@@ -91,14 +91,14 @@ Hosted on hifzworld-api (same Railway service). After deploy, paste these:
 *(for 1.0 you can leave blank or use this)*
 
 ```
-Welcome to Hifz.World — Mushaf reading, qirāʾāt comparison, page bundles, and live review with a listener.
+Welcome to Hifz.World — Mushaf reading, qirāʾāt comparison, page decks, and live review with a listener.
 ```
 
 ---
 
 ## App Review — Sign-In
 
-**Sign-in required:** Yes (for Bundles / share / review). Mushaf browsing works without an account.
+**Sign-in required:** Yes (for Decks / share / review). Mushaf browsing works without an account.
 
 | Field | Value |
 | --- | --- |
@@ -121,48 +121,50 @@ Welcome to Hifz.World — Mushaf reading, qirāʾāt comparison, page bundles, a
 *(paste into Notes — max 4,000)*
 
 ```
-Thank you for reviewing Hifz.World.
+Thank you for reviewing Hifz.World (1.0.1, build 10).
 
-RESOLUTION OF PRIOR REJECTION (build 8)
-• Account deletion (5.1.1): Signed-in users can permanently delete their account in-app.
-  Path: Mushaf tab → open drawer (menu) → Delete Account → confirm.
-  This calls DELETE /api/users/me and removes the account and associated server data (not a temporary deactivation).
-• Background modes (2.5.4): Removed UIBackgroundModes values "audio" and "voip". The shipping app does not provide persistent background audio or VoIP. Short in-app verse clips do not require background audio. Camera/microphone usage strings were also removed (no video/VoIP feature in this build).
+RESOLUTION OF PRIOR REJECTION (vs build 7)
+• 5.1.1 Account deletion: Permanent in-app deletion is available (not deactivate-only).
+  Path: Sign in → Mushaf tab → open drawer (☰) → Delete Account → confirm.
+  This calls DELETE /api/users/me and removes the account and associated server data.
+• 2.5.4 Background modes: Removed UIBackgroundModes "audio" and "voip".
+  This build has no persistent background audio and no VoIP/video calls.
+• A screen recording of Sign in → Delete Account is attached / included with this reply.
 
 SIGN IN
-• The app uses Sign in with Apple only (no username/password account).
+• Sign in with Apple only (no username/password).
 • Please use your own Apple ID on the review device.
-• After signing in, Bundles, sharing, and review sessions unlock.
+• After signing in, Decks, sharing, review, and deck recording unlock.
 
-ACCOUNT DELETION DEMO
+ACCOUNT DELETION (please verify)
 1. Sign in with Apple.
 2. Mushaf tab → open the left drawer (menu).
-3. Tap Delete Account → confirm in the alert.
-4. Account is deleted; you are signed out.
+3. Tap Delete Account → confirm.
+4. Account is deleted and you are signed out.
+
+MICROPHONE (on-device only)
+• Decks tab → mic on a deck starts a recitation recording.
+• Audio is stored on the device only (not uploaded to our servers).
+• List button (when takes exist) opens previous recordings; play opens that deck with saved marks.
+• No background audio mode — playback is in-foreground.
 
 WHAT TO TEST WITHOUT SIGN-IN
-1. Open the Mushaf tab.
-2. Swipe between pages; use Go To Page if available.
-3. Open settings/qirāʾāt controls from the drawer and toggle comparison options.
-4. Try light/dark Mushaf mode.
+1. Mushaf tab — swipe pages / Go To Page.
+2. Drawer → Settings — qirāʾāt / light-dark options.
 
 WHAT TO TEST WITH SIGN-IN
-1. Sign in with Apple.
-2. Bundles tab → create a bundle → add pages from the Mushaf (or from bundle UI).
-3. Share a bundle with another Apple ID if a second device is available.
-4. Start a review session: listener follows pages and can mark words; reciter sees marks / page sync.
-5. Feedback tab shows review marks after a session.
-6. Drawer → Send Feedback submits product feedback to our API.
-7. Drawer → Delete Account (permanent deletion as above).
+1. Decks → create a deck → add pages from Mushaf.
+2. Optional: share a deck / start a review session with another Apple ID.
+3. Decks → mic → record while marking mistakes → Stop (tab bar) → play the take.
+4. Feedback tab after a review session.
+5. Drawer → Send Feedback.
+6. Drawer → Delete Account.
 
 NOTES
-• No in-app purchases.
-• No third-party social login.
-• No VoIP / background audio / camera / microphone features in this build.
-• Core reading works offline for cached content; account features need network.
+• No in-app purchases. No third-party social login. No VoIP/camera.
+• No UIBackgroundModes audio or voip.
 • We do not use tracking (ATT not required for advertising ID).
-
-If anything fails to load, please retry on Wi‑Fi. Backend: hifzworld-api on Railway.
+• Backend: hifzworld-api on Railway. Retry on Wi‑Fi if something fails to load.
 ```
 
 ---
@@ -208,7 +210,7 @@ You already have 4 of 10 on 6.5". Prioritize order:
 
 1. Mushaf page (hero)  
 2. Qirāʾāt / variation highlight  
-3. Bundles list  
+3. Decks list  
 4. Review / marks (listener or Feedback)  
 5. Optional: landscape spread  
 

@@ -1,34 +1,55 @@
 import SwiftUI
+import UIKit
 
 struct ShareBundleSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var email = ""
-    @State private var isSharing = false
+    @State private var inviteURL: URL?
+    @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var didCopy = false
 
     let bundleTitle: String
-    let onShare: (String) async throws -> Void
+    let createInviteLink: () async throws -> URL
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Bundle") {
+                Section("Deck") {
                     Text(bundleTitle)
                 }
-                Section("Recipient") {
-                    TextField("Email address", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+
+                Section {
+                    if isLoading {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Creating share link…")
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let inviteURL {
+                        Text(inviteURL.absoluteString)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+
+                        ShareLink(item: inviteURL, subject: Text(bundleTitle), message: Text("Join my deck on Hifz.World")) {
+                            Label("Share via Messages, WhatsApp…", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button {
+                            UIPasteboard.general.string = inviteURL.absoluteString
+                            didCopy = true
+                        } label: {
+                            Label(didCopy ? "Copied" : "Copy Link", systemImage: didCopy ? "checkmark" : "doc.on.doc")
+                        }
+                    }
+                } footer: {
+                    Text("Anyone with the link can open it in Hifz.World and join this deck after signing in.")
                 }
             }
-            .navigationTitle("Share Bundle")
+            .navigationTitle("Share Deck")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Share") { Task { await share() } }
-                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSharing)
+                    Button("Done") { dismiss() }
                 }
             }
             .alert("Error", isPresented: Binding(
@@ -39,15 +60,15 @@ struct ShareBundleSheet: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+            .task { await loadInvite() }
         }
     }
 
-    private func share() async {
-        isSharing = true
-        defer { isSharing = false }
+    private func loadInvite() async {
+        isLoading = true
+        defer { isLoading = false }
         do {
-            try await onShare(email.trimmingCharacters(in: .whitespacesAndNewlines))
-            dismiss()
+            inviteURL = try await createInviteLink()
         } catch {
             errorMessage = error.localizedDescription
         }

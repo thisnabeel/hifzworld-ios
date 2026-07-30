@@ -161,6 +161,39 @@ struct FeedbackSessionDTO: Codable, Identifiable, Hashable {
     }
 }
 
+struct FriendshipDTO: Codable, Identifiable, Hashable {
+    let id: UUID
+    let status: String
+    let requesterID: UUID
+    let recipientID: UUID
+    let user: HifzworldUser?
+    let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, user
+        case requesterID = "requester_id"
+        case recipientID = "recipient_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct FriendshipsResponse: Codable {
+    let friends: [FriendshipDTO]
+    let pendingIncoming: [FriendshipDTO]
+    let pendingOutgoing: [FriendshipDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case friends
+        case pendingIncoming = "pending_incoming"
+        case pendingOutgoing = "pending_outgoing"
+    }
+}
+
+struct FriendBundlesResponse: Codable {
+    let friend: HifzworldUser
+    let bundles: [RemoteMushafBundle]
+}
+
 enum MistakeMarkType: String, CaseIterable, Identifiable {
     case tajweed
     case pronunciation

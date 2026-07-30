@@ -4,6 +4,7 @@ struct DrawerView: View {
     let user: HifzworldUser?
     let onSettings: () -> Void
     let onSendFeedback: () -> Void
+    let onEditHandle: () -> Void
     let onSignOut: () -> Void
     let onDeleteAccount: () -> Void
     let onClose: () -> Void
@@ -50,7 +51,7 @@ struct DrawerView: View {
                     .font(.title2.bold())
                     .foregroundStyle(.white)
 
-                Text("Read the Mushaf, save pages in Bundles, and review with a listener who can mark feedback while you recite.")
+                Text("Read the Mushaf, save pages in Decks, and review with a listener who can mark feedback while you recite.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
@@ -69,6 +70,13 @@ struct DrawerView: View {
                     systemImage: "bubble.left.and.bubble.right.fill",
                     action: onSendFeedback
                 )
+                if user != nil {
+                    drawerRow(
+                        title: "Edit Handle",
+                        systemImage: "at",
+                        action: onEditHandle
+                    )
+                }
             }
             .padding(.horizontal, 12)
 
@@ -125,7 +133,12 @@ struct DrawerView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    if let email = user.email, !email.isEmpty {
+                    if let handle = user.handle, !handle.isEmpty {
+                        Text("@\(handle)")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                    } else if let email = user.email, !email.isEmpty {
                         Text(email)
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.55))

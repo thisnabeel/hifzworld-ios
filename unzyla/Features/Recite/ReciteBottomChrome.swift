@@ -9,6 +9,8 @@ struct ReciteBottomChrome: View {
     var isDarkMode = false
     /// When false, paint swatches/options are hidden (landscape may still show tabs + brush entry).
     var showsPaintTools = true
+    /// When false, hide the paintbrush but keep yellow / black / invert viewing tools.
+    var allowsPainting = true
     var selectedTab: Binding<Int>?
     var activeMarkType: MistakeMarkType = .tajweed
     var onToggleMarkingMode: (() -> Void)?
@@ -83,13 +85,15 @@ struct ReciteBottomChrome: View {
             if showsPaintTools {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: toolSpacing) {
-                        toolButton(
-                            systemName: "paintbrush.fill",
-                            isActive: isPaintMode,
-                            activeBackground: isDarkMode ? Color.white : .black,
-                            activeForeground: isDarkMode ? .black : .white,
-                            action: onTogglePaintMode
-                        )
+                        if allowsPainting {
+                            toolButton(
+                                systemName: "paintbrush.fill",
+                                isActive: isPaintMode,
+                                activeBackground: isDarkMode ? Color.white : .black,
+                                activeForeground: isDarkMode ? .black : .white,
+                                action: onTogglePaintMode
+                            )
+                        }
 
                         if hasPaintedWords {
                             toolButton(
@@ -117,13 +121,15 @@ struct ReciteBottomChrome: View {
                     }
                 }
             } else if isCompactLandscape {
-                toolButton(
-                    systemName: "paintbrush.fill",
-                    isActive: false,
-                    activeBackground: isDarkMode ? Color.white : .black,
-                    activeForeground: isDarkMode ? .black : .white,
-                    action: onTogglePaintMode
-                )
+                if allowsPainting {
+                    toolButton(
+                        systemName: "paintbrush.fill",
+                        isActive: false,
+                        activeBackground: isDarkMode ? Color.white : .black,
+                        activeForeground: isDarkMode ? .black : .white,
+                        action: onTogglePaintMode
+                    )
+                }
                 Spacer(minLength: 0)
             }
 
@@ -138,7 +144,7 @@ struct ReciteBottomChrome: View {
     private var landscapeTabCluster: some View {
         HStack(spacing: 2) {
             landscapeTabButton(title: "Mushaf", systemImage: "book.fill", tag: 0)
-            landscapeTabButton(title: "Bundles", systemImage: "square.stack.3d.up", tag: 1)
+            landscapeTabButton(title: "Decks", systemImage: "square.stack.3d.up", tag: 1)
             landscapeTabButton(title: "Feedback", systemImage: "text.badge.checkmark", tag: 2)
         }
         .padding(3)

@@ -18,7 +18,7 @@ final class BundleStore {
     func createBundle(title: String, description: String) -> MushafBundle {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundle = MushafBundle(
-            title: trimmedTitle.isEmpty ? "Untitled Bundle" : trimmedTitle,
+            title: trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle,
             description: description.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         bundles.insert(bundle, at: 0)
@@ -40,7 +40,7 @@ final class BundleStore {
     func updateBundle(id: UUID, title: String, description: String) {
         guard let index = bundles.firstIndex(where: { $0.id == id }) else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        bundles[index].title = trimmedTitle.isEmpty ? "Untitled Bundle" : trimmedTitle
+        bundles[index].title = trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
         bundles[index].description = description.trimmingCharacters(in: .whitespacesAndNewlines)
         bundles[index].updatedAt = Date()
         save()
@@ -76,9 +76,26 @@ final class BundleStore {
         guard let index = bundles.firstIndex(where: { $0.id == bundleID }) else { return false }
         guard let pageIndex = bundles[index].pageNumbers.firstIndex(of: page) else { return false }
         bundles[index].pageNumbers.remove(at: pageIndex)
+        bundles[index].pageSurahOverrides.removeValue(forKey: page)
         bundles[index].updatedAt = Date()
         save()
         return true
+    }
+
+    /// Assigns which surah section a page should appear under in the deck list.
+    /// Pass the default surah (or nil) to clear an override.
+    func setPageSurahOverride(_ surahNumber: Int?, for page: Int, in bundleID: UUID) {
+        guard let index = bundles.firstIndex(where: { $0.id == bundleID }) else { return }
+        guard bundles[index].pageNumbers.contains(page) else { return }
+
+        let defaultSurah = BundlePageGrouping.defaultSurahNumber(for: page)
+        if let surahNumber, surahNumber != defaultSurah {
+            bundles[index].pageSurahOverrides[page] = surahNumber
+        } else {
+            bundles[index].pageSurahOverrides.removeValue(forKey: page)
+        }
+        bundles[index].updatedAt = Date()
+        save()
     }
 
     func togglePage(_ page: Int, in bundleID: UUID) {
@@ -124,6 +141,33 @@ final class BundleStore {
         if let data = try? JSONEncoder().encode(bundles) {
             defaults.set(data, forKey: storageKey)
         }
+    }
+
+    func upsertPreviewDeck(
+        serverID: UUID,
+        title: String,
+        pageNumbers: [Int],
+        mushafID: Int
+    ) -> MushafBundle {
+        if let index = bundles.firstIndex(where: { $0.serverID == serverID }) {
+            bundles[index].title = title
+            bundles[index].pageNumbers = pageNumbers
+            bundles[index].mushafID = mushafID
+            bundles[index].updatedAt = Date()
+            save()
+            return bundles[index]
+        }
+        let bundle = MushafBundle(
+            serverID: serverID,
+            title: title,
+            description: "Sample deck for feedback preview",
+            pageNumbers: pageNumbers,
+            mushafID: mushafID,
+            isShared: false
+        )
+        bundles.insert(bundle, at: 0)
+        save()
+        return bundle
     }
 
     func bundle(serverID: UUID) -> MushafBundle? {

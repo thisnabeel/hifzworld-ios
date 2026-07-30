@@ -9,6 +9,9 @@ struct unzylaApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView()
+                .onOpenURL { url in
+                    DeckInviteHandler.shared.handle(url: url)
+                }
         }
     }
 }

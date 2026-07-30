@@ -14,6 +14,7 @@ enum GlobalConfigService {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
+    @MainActor
     static func checkMinVersion(client: HifzworldAPIClient = .shared) async -> MinVersionCheckResult {
         let bundleID = Bundle.main.bundleIdentifier ?? ""
         let installed = installedVersion()

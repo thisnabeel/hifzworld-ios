@@ -8,6 +8,24 @@ final class PreferencesStore {
     private let mushafKey = "mushafId"
     private let narratorsKey = "selectedNarrators"
     private let darkModeKey = "isMushafDarkMode"
+    private let hasChosenMushafKey = "hasChosenMushaf"
+
+    private init() {
+        migrateMushafOnboardingFlagIfNeeded()
+    }
+
+    /// Prior installs never set `hasChosenMushaf`; skip the picker if they already have app state.
+    private func migrateMushafOnboardingFlagIfNeeded() {
+        guard defaults.object(forKey: hasChosenMushafKey) == nil else { return }
+        let hasPriorState =
+            defaults.object(forKey: mushafKey) != nil ||
+            defaults.object(forKey: narratorsKey) != nil ||
+            defaults.object(forKey: darkModeKey) != nil ||
+            defaults.data(forKey: "mushafBundles") != nil
+        if hasPriorState {
+            defaults.set(true, forKey: hasChosenMushafKey)
+        }
+    }
 
     var mushafID: Int {
         get {
@@ -17,6 +35,19 @@ final class PreferencesStore {
         set {
             defaults.set(String(newValue), forKey: mushafKey)
         }
+    }
+
+    /// First-launch mushaf picker; once true, onboarding is not shown again.
+    var hasChosenMushaf: Bool {
+        get { defaults.bool(forKey: hasChosenMushafKey) }
+        set { defaults.set(newValue, forKey: hasChosenMushafKey) }
+    }
+
+    var needsMushafOnboarding: Bool { !hasChosenMushaf }
+
+    func chooseMushaf(_ id: Int) {
+        mushafID = id
+        hasChosenMushaf = true
     }
 
     var selectedNarratorIDs: [String] {
