@@ -78,7 +78,14 @@ final class AuthService: NSObject {
             KeychainTokenStore.save(response.token)
             currentUser = response.user
         } catch {
-            lastError = error.localizedDescription
+            #if DEBUG
+            if let apiError = error as? APIError, case .decoding(let underlying) = apiError {
+                print("Auth decode failed: \(underlying)")
+            } else if let decoding = error as? DecodingError {
+                print("Auth decode failed: \(decoding)")
+            }
+            #endif
+            lastError = APIError.userFacingMessage(for: error)
         }
     }
 

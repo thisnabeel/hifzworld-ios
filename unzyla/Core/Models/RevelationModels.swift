@@ -20,10 +20,16 @@ struct RevelationTranslation: Decodable {
     let urdu: String?
 
     var preferredText: String? {
-        let englishText = english?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let englishText, !englishText.isEmpty { return englishText }
-        let urduText = urdu?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let urduText, !urduText.isEmpty { return urduText }
+        text(for: .english)
+    }
+
+    func text(for language: TranslationLanguage) -> String? {
+        let primary = (language == .urdu ? urdu : english)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let primary, !primary.isEmpty { return primary }
+        let fallback = (language == .urdu ? english : urdu)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fallback, !fallback.isEmpty { return fallback }
         return nil
     }
 }

@@ -8,6 +8,7 @@ enum MushafTypography {
         static let indoPakQuran = "AlQuranIndoPakbyQuranWBW"
         static let surahNameV2 = "surah-name-v2"
         static let bismillah = indoPakQuran
+        static let urduNastaliq = "NotoNastaliqUrdu-Regular"
     }
 
     static func quranFontName(mushafID: Int) -> String {
@@ -50,6 +51,7 @@ enum MushafTypography {
             FontName.indoPakQuran,
             FontName.surahNameV2,
             FontName.bismillah,
+            FontName.urduNastaliq,
         ]
         for name in required where UIFont(name: name, size: 16) == nil {
             print("⚠️ Missing font: \(name)")

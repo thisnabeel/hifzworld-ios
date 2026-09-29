@@ -5,7 +5,7 @@ struct OfflineBanner: View {
 
     var body: some View {
         if !isConnected {
-            Text("You're offline. Some features may not work.")
+            Text("You're offline. Cached pages stay readable. Marks save on this device and sync when you're back online.")
                 .font(.caption)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)

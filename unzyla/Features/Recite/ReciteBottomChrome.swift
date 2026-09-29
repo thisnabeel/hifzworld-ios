@@ -4,17 +4,39 @@ struct ReciteBottomChrome: View {
     let isPaintMode: Bool
     var isMarkingMode = false
     var isReviewListener = false
+    /// Friend Mushaf coach mode — same mark tools as listener, without page-hide.
+    var isCoachMarking = false
+    /// Own Mushaf marking — show hide/invert for persisted marks.
+    var showsOwnMarkViewTools = false
+    var areSessionMarksVisible = true
+    var isSessionMarksInverted = false
+    var hasSessionMarks = false
+    var onToggleSessionMarksVisible: (() -> Void)?
+    var onToggleSessionMarksInverted: (() -> Void)?
     var pageHidden = false
     var isCompactLandscape = false
     var isDarkMode = false
+    var translationLanguage: TranslationLanguage = .english
     /// When false, paint swatches/options are hidden (landscape may still show tabs + brush entry).
     var showsPaintTools = true
     /// When false, hide the paintbrush but keep yellow / black / invert viewing tools.
     var allowsPainting = true
+    var isAyahPromptMode = false
+    var ayahPromptCueCount = 2
+    var isJournalRecording = false
+    var journalRecordingElapsed: TimeInterval = 0
+    var onToggleAyahPromptMode: (() -> Void)?
+    var onToggleJournalRecording: (() -> Void)?
+    var onSelectAyahPromptCueCount: ((Int) -> Void)?
     var selectedTab: Binding<Int>?
-    var activeMarkType: MistakeMarkType = .tajweed
+    var activeMarkType: MistakeMarkType = .mistake
+    var orderedMarkTypes: [MistakeMarkType] = Array(MistakeMarkType.allCases)
+    var showsMarkTypePills = false
+    var markTypeColors: [MistakeMarkType: Color] = [:]
     var onToggleMarkingMode: (() -> Void)?
     var onSelectMarkType: ((MistakeMarkType) -> Void)?
+    var isFireMode = false
+    var onToggleFireMode: (() -> Void)?
     var onTogglePageHidden: (() -> Void)?
     let selectedVerse: SelectedVerseDetail?
     let activePaintStyle: WordPaintStyle
@@ -24,8 +46,13 @@ struct ReciteBottomChrome: View {
     let onTogglePaintMode: () -> Void
     let onTogglePaintedWordsVisible: () -> Void
     let onSelectPaintStyle: (WordPaintStyle) -> Void
-    let onTogglePaintInverted: () -> Void
-    let onDismissVerseRef: () -> Void
+    var onTogglePaintInverted: () -> Void
+    var onDismissVerseRef: () -> Void
+    var showsBlockPageNavigation = false
+    var canGoToPreviousBlockPage = false
+    var canGoToNextBlockPage = false
+    var onGoToPreviousBlockPage: (() -> Void)?
+    var onGoToNextBlockPage: (() -> Void)?
 
     private var toolSize: CGFloat { isCompactLandscape ? 30 : 44 }
     private var barPaddingV: CGFloat { isCompactLandscape ? 6 : 10 }
@@ -62,14 +89,61 @@ struct ReciteBottomChrome: View {
         isDarkMode ? .white : .black
     }
 
+    private var showsBlockNavRow: Bool {
+        !isPaintMode && !isAyahPromptMode && showsBlockPageNavigation && !isCompactLandscape
+    }
+
+    @ViewBuilder
+    private var blockNavigationRow: some View {
+        BlockPageNavigationButtons(
+            canGoPrevious: canGoToPreviousBlockPage,
+            canGoNext: canGoToNextBlockPage,
+            size: toolSize,
+            corner: corner,
+            fill: idleToolFill,
+            stroke: idleToolStroke,
+            foreground: idleToolForeground,
+            showsShadow: false,
+            fillsWidth: true,
+            onPrevious: { onGoToPreviousBlockPage?() },
+            onNext: { onGoToNextBlockPage?() }
+        )
+        .padding(.horizontal, barPaddingH)
+        .padding(.top, barPaddingV)
+    }
+
+    private var inlineBlockNavigation: some View {
+        BlockPageNavigationButtons(
+            canGoPrevious: canGoToPreviousBlockPage,
+            canGoNext: canGoToNextBlockPage,
+            size: toolSize,
+            corner: corner,
+            fill: idleToolFill,
+            stroke: idleToolStroke,
+            foreground: idleToolForeground,
+            showsShadow: false,
+            fillsWidth: false,
+            onPrevious: { onGoToPreviousBlockPage?() },
+            onNext: { onGoToNextBlockPage?() }
+        )
+    }
+
     var body: some View {
         Group {
-            if !isPaintMode, let selectedVerse {
+            if isAyahPromptMode {
+                ayahPromptToolbar
+            } else if !isPaintMode, let selectedVerse {
                 verseRefPanel(detail: selectedVerse)
-            } else if isReviewListener {
-                reviewMarkingToolbar
+            } else if isReviewListener || isCoachMarking {
+                VStack(spacing: 0) {
+                    if showsBlockNavRow { blockNavigationRow }
+                    reviewMarkingToolbar
+                }
             } else {
-                paintToolbar
+                VStack(spacing: 0) {
+                    if showsBlockNavRow { blockNavigationRow }
+                    paintToolbar
+                }
             }
         }
         .background(barBackground)
@@ -78,6 +152,54 @@ struct ReciteBottomChrome: View {
                 .fill(hairline)
                 .frame(height: 1 / UIScreen.main.scale)
         }
+    }
+
+    private var ayahPromptToolbar: some View {
+        HStack(spacing: toolSpacing) {
+            Spacer(minLength: 0)
+            ayahPromptCueCountPicker
+            mushafRecordButton
+            ayahPromptButton
+            if isCompactLandscape, selectedTab != nil {
+                landscapeTabCluster
+            }
+        }
+        .padding(.horizontal, barPaddingH)
+        .padding(.vertical, barPaddingV)
+    }
+
+    private var ayahPromptCueCountPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(0...2, id: \.self) { count in
+                Button {
+                    onSelectAyahPromptCueCount?(count)
+                } label: {
+                    Text("\(count)")
+                        .font(.system(size: isCompactLandscape ? 12 : 14, weight: .semibold))
+                        .foregroundStyle(
+                            ayahPromptCueCount == count
+                                ? (isDarkMode ? Color.black : Color.white)
+                                : idleToolForeground
+                        )
+                        .frame(width: isCompactLandscape ? 28 : 34, height: toolSize)
+                        .background(
+                            ayahPromptCueCount == count
+                                ? (isDarkMode ? Color.white : Color.black)
+                                : Color.clear
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(count) cue \(count == 1 ? "word" : "words")")
+            }
+        }
+        .background(idleToolFill)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .stroke(idleToolStroke, lineWidth: 1.5)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Cue words after verse")
     }
 
     private var paintToolbar: some View {
@@ -116,7 +238,7 @@ struct ReciteBottomChrome: View {
                                 action: { onSelectPaintStyle(.highlight) }
                             )
 
-                            invertButton(action: onTogglePaintInverted)
+                            invertButton(isActive: isPaintInverted, action: onTogglePaintInverted)
                         }
                     }
                 }
@@ -133,6 +255,13 @@ struct ReciteBottomChrome: View {
                 Spacer(minLength: 0)
             }
 
+            Spacer(minLength: 0)
+            if isCompactLandscape, showsBlockPageNavigation, !isPaintMode {
+                inlineBlockNavigation
+            }
+            mushafRecordButton
+            ayahPromptButton
+
             if isCompactLandscape, selectedTab != nil {
                 landscapeTabCluster
             }
@@ -141,11 +270,58 @@ struct ReciteBottomChrome: View {
         .padding(.vertical, barPaddingV)
     }
 
+    private var ayahPromptButton: some View {
+        Button {
+            onToggleAyahPromptMode?()
+        } label: {
+            Image("HoldingHands")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .padding(10)
+                .foregroundStyle(isAyahPromptMode ? (isDarkMode ? Color.black : Color.white) : idleToolForeground)
+                .frame(width: toolSize, height: toolSize)
+                .background(
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .fill(isAyahPromptMode ? (isDarkMode ? Color.white : Color.black) : idleToolFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .stroke(isAyahPromptMode ? Color.clear : idleToolStroke, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(isJournalRecording)
+        .accessibilityLabel(isAyahPromptMode ? "Exit ayah prompt mode" : "Ayah prompt mode")
+    }
+
+    private var mushafRecordButton: some View {
+        Button {
+            onToggleJournalRecording?()
+        } label: {
+            Image(systemName: "mic.fill")
+                .font(.system(size: isCompactLandscape ? 14 : 18, weight: .semibold))
+                .foregroundStyle(isJournalRecording ? Color.white : Color.red)
+                .frame(width: toolSize, height: toolSize)
+                .background(
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .fill(isJournalRecording ? Color.red : idleToolFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .stroke(isJournalRecording ? Color.clear : idleToolStroke, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isJournalRecording ? "Stop recording" : "Record")
+    }
+
     private var landscapeTabCluster: some View {
         HStack(spacing: 2) {
             landscapeTabButton(title: "Mushaf", systemImage: "book.fill", tag: 0)
             landscapeTabButton(title: "Decks", systemImage: "square.stack.3d.up", tag: 1)
-            landscapeTabButton(title: "Feedback", systemImage: "text.badge.checkmark", tag: 2)
+            landscapeTabButton(title: "Marks", systemImage: "text.badge.checkmark", tag: 2)
+            landscapeTabButton(title: "Journal", systemImage: "book.pages", tag: 3)
         }
         .padding(3)
         .background(
@@ -187,33 +363,35 @@ struct ReciteBottomChrome: View {
     }
 
     private func verseRefPanel(detail: SelectedVerseDetail) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Button(action: onDismissVerseRef) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: isCompactLandscape ? 15 : 18, weight: .semibold))
-                        .foregroundStyle(idleToolForeground)
-                        .frame(width: toolSize, height: toolSize)
-                        .background(idleToolFill)
-                        .clipShape(RoundedRectangle(cornerRadius: corner))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: corner)
-                                .stroke(idleToolStroke, lineWidth: 1.5)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: corner))
-                }
-                .buttonStyle(.plain)
-
+        VStack(alignment: .leading, spacing: isCompactLandscape ? 6 : 8) {
+            HStack(alignment: .center, spacing: 10) {
                 Text(detail.displayRef)
-                    .font(.system(size: isCompactLandscape ? 15 : 17, weight: .semibold))
-                    .foregroundStyle(primaryText)
+                    .font(.system(size: isCompactLandscape ? 12 : 13, weight: .semibold))
+                    .foregroundStyle(primaryText.opacity(0.55))
                     .monospacedDigit()
+                    .tracking(0.4)
 
                 Spacer(minLength: 0)
 
                 if isCompactLandscape, selectedTab != nil {
                     landscapeTabCluster
                 }
+
+                Button(action: onDismissVerseRef) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: isCompactLandscape ? 11 : 12, weight: .semibold))
+                        .foregroundStyle(idleToolForeground.opacity(0.72))
+                        .frame(width: isCompactLandscape ? 26 : 28, height: isCompactLandscape ? 26 : 28)
+                        .background(idleToolFill)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(idleToolStroke.opacity(0.7), lineWidth: 1)
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close translation")
             }
 
             Group {
@@ -227,18 +405,30 @@ struct ReciteBottomChrome: View {
                             .foregroundStyle(.secondary)
                     }
                 } else if let translation = detail.translation {
-                    VerseTranslationBlock(translation: translation, isDarkMode: isDarkMode)
-                        .id(detail.verseKey)
+                    VerseTranslationBlock(
+                        translation: TranslationDisplayText.polished(
+                            translation,
+                            language: translationLanguage
+                        ),
+                        isDarkMode: isDarkMode,
+                        isRightToLeft: translationLanguage.isRightToLeft
+                    )
+                    .id(detail.verseKey)
                 } else if let error = detail.translationError {
                     Text(error)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.leading, isCompactLandscape ? 0 : 56)
         }
-        .padding(.horizontal, barPaddingH)
-        .padding(.vertical, barPaddingV)
+        .padding(.horizontal, isCompactLandscape ? 14 : 16)
+        .padding(.top, isCompactLandscape ? 8 : 10)
+        .padding(.bottom, isCompactLandscape ? 8 : 12)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(hairline)
+                .frame(height: 1 / UIScreen.main.scale)
+        }
     }
 
     private func toolButton(
@@ -264,22 +454,22 @@ struct ReciteBottomChrome: View {
         .buttonStyle(.plain)
     }
 
-    private func invertButton(action: @escaping () -> Void) -> some View {
+    private func invertButton(isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text("invert")
                 .font(.system(size: isCompactLandscape ? 11 : 14, weight: .semibold))
-                .foregroundStyle(isPaintInverted ? .white : idleToolForeground)
+                .foregroundStyle(isActive ? .white : idleToolForeground)
                 .padding(.horizontal, isCompactLandscape ? 8 : 12)
                 .frame(height: toolSize)
                 .background(
-                    isPaintInverted
+                    isActive
                         ? Color(red: 0.2, green: 0.45, blue: 0.95)
                         : idleToolFill
                 )
                 .clipShape(RoundedRectangle(cornerRadius: corner))
                 .overlay(
                     RoundedRectangle(cornerRadius: corner)
-                        .stroke(isPaintInverted ? Color.clear : idleToolStroke, lineWidth: 1.5)
+                        .stroke(isActive ? Color.clear : idleToolStroke, lineWidth: 1.5)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: corner))
         }
@@ -310,49 +500,101 @@ struct ReciteBottomChrome: View {
         .buttonStyle(.plain)
     }
 
+    /// Fallback yellow when a type has no custom color yet.
+    private var markYellow: Color { Color(red: 1, green: 0.92, blue: 0.23) }
+
+    private func color(for type: MistakeMarkType) -> Color {
+        markTypeColors[type] ?? markYellow
+    }
+
     private var reviewMarkingToolbar: some View {
         HStack(spacing: toolSpacing) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: toolSpacing) {
-                    toolButton(
-                        systemName: "highlighter",
-                        isActive: isMarkingMode,
-                        activeBackground: Color(red: 1, green: 0.45, blue: 0.42),
-                        action: { onToggleMarkingMode?() }
-                    )
+            toolButton(
+                systemName: "highlighter",
+                isActive: isMarkingMode,
+                activeBackground: color(for: activeMarkType),
+                activeForeground: .black,
+                action: { onToggleMarkingMode?() }
+            )
 
-                    toolButton(
-                        systemName: pageHidden ? "eye.slash.fill" : "eye.fill",
-                        isActive: pageHidden,
-                        activeBackground: Color(red: 0.35, green: 0.35, blue: 0.38),
-                        action: { onTogglePageHidden?() }
-                    )
+            if isReviewListener {
+                toolButton(
+                    systemName: pageHidden ? "eye.slash.fill" : "eye.fill",
+                    isActive: pageHidden,
+                    activeBackground: Color(red: 0.35, green: 0.35, blue: 0.38),
+                    action: { onTogglePageHidden?() }
+                )
+            }
 
-                    if isMarkingMode {
-                        ForEach(MistakeMarkType.allCases) { type in
-                            Button {
-                                onSelectMarkType?(type)
-                            } label: {
-                                Text(type.title)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(
-                                        activeMarkType == type
-                                            ? .white
-                                            : idleToolForeground
-                                    )
-                                    .padding(.horizontal, isCompactLandscape ? 8 : 10)
-                                    .padding(.vertical, isCompactLandscape ? 6 : 8)
-                                    .background(
-                                        activeMarkType == type
-                                            ? Color(red: 1, green: 0.45, blue: 0.42)
-                                            : (isDarkMode ? Color.white.opacity(0.10) : Color(.tertiarySystemFill))
-                                    )
-                                    .clipShape(Capsule())
+            if showsOwnMarkViewTools, hasSessionMarks || !areSessionMarksVisible || isSessionMarksInverted {
+                toolButton(
+                    systemName: areSessionMarksVisible ? "eye.fill" : "eye.slash.fill",
+                    isActive: !areSessionMarksVisible,
+                    activeBackground: Color(red: 0.35, green: 0.35, blue: 0.38),
+                    activeForeground: .white,
+                    action: { onToggleSessionMarksVisible?() }
+                )
+
+                invertButton(
+                    isActive: isSessionMarksInverted,
+                    action: { onToggleSessionMarksInverted?() }
+                )
+            }
+
+            if isMarkingMode {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: toolSpacing) {
+                        if showsMarkTypePills {
+                            ForEach(orderedMarkTypes) { type in
+                                let typeColor = color(for: type)
+                                Button {
+                                    onSelectMarkType?(type)
+                                } label: {
+                                    Text(type.title)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(
+                                            !isFireMode && activeMarkType == type
+                                                ? .black
+                                                : idleToolForeground
+                                        )
+                                        .padding(.horizontal, isCompactLandscape ? 8 : 10)
+                                        .padding(.vertical, isCompactLandscape ? 6 : 8)
+                                        .background(
+                                            !isFireMode && activeMarkType == type
+                                                ? typeColor
+                                                : (isDarkMode ? Color.white.opacity(0.10) : Color(.tertiarySystemFill))
+                                        )
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+
+                        Button {
+                            onToggleFireMode?()
+                        } label: {
+                            Image(systemName: "flame.fill")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(isFireMode ? Color.white : idleToolForeground)
+                                .padding(.horizontal, isCompactLandscape ? 8 : 10)
+                                .padding(.vertical, isCompactLandscape ? 6 : 8)
+                                .background(
+                                    isFireMode
+                                        ? Color(red: 0.92, green: 0.32, blue: 0.12)
+                                        : (isDarkMode ? Color.white.opacity(0.10) : Color(.tertiarySystemFill))
+                                )
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Fire")
                     }
                 }
+            } else {
+                Spacer(minLength: 0)
+            }
+
+            if isCompactLandscape, showsBlockPageNavigation, !isPaintMode {
+                inlineBlockNavigation
             }
 
             if isCompactLandscape, selectedTab != nil {
@@ -367,6 +609,7 @@ struct ReciteBottomChrome: View {
 private struct VerseTranslationBlock: View {
     let translation: String
     var isDarkMode = false
+    var isRightToLeft = false
     @State private var isExpanded = false
     @State private var fullHeight: CGFloat = 0
     @State private var sixLineHeight: CGFloat = 0
@@ -380,47 +623,56 @@ private struct VerseTranslationBlock: View {
         return fullHeight > sixLineHeight + 1
     }
 
+    private var textAlignment: TextAlignment { .leading }
+    private var frameAlignment: Alignment { .leading }
+
     private var textColor: Color {
         isDarkMode ? .white : .black
+    }
+
+    private var translationFont: Font {
+        if isRightToLeft {
+            return .custom(MushafTypography.FontName.urduNastaliq, size: 20)
+        }
+        return .system(size: 16, weight: .regular, design: .serif)
+    }
+
+    private var translationLineSpacing: CGFloat { isRightToLeft ? 10 : 3 }
+
+    @ViewBuilder
+    private func translationText(lineLimit: Int? = nil) -> some View {
+        Text(translation)
+            .font(translationFont)
+            .foregroundStyle(textColor.opacity(0.9))
+            .lineSpacing(translationLineSpacing)
+            .lineLimit(lineLimit)
+            .multilineTextAlignment(textAlignment)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
+            .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
+            .flipsForRightToLeftLayoutDirection(false)
+            .textSelection(.enabled)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Group {
                 if !exceedsSixLines {
-                    Text(translation)
-                        .font(.subheadline)
-                        .foregroundStyle(textColor)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+                    translationText()
                 } else if isExpanded {
                     if fullHeight <= maxExpandedHeight {
-                        Text(translation)
-                            .font(.subheadline)
-                            .foregroundStyle(textColor)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
+                        translationText()
                     } else {
                         ScrollView {
-                            Text(translation)
-                                .font(.subheadline)
-                                .foregroundStyle(textColor)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
+                            translationText()
                         }
                         .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                         .frame(maxHeight: maxExpandedHeight)
                     }
                 } else {
-                    Text(translation)
-                        .font(.subheadline)
-                        .foregroundStyle(textColor)
-                        .lineLimit(collapsedLineCount)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    translationText(lineLimit: collapsedLineCount)
                 }
             }
+            .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
             .animation(.easeInOut(duration: 0.22), value: isExpanded)
             .animation(.easeInOut(duration: 0.22), value: exceedsSixLines)
 
@@ -453,8 +705,11 @@ private struct VerseTranslationBlock: View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 Text(translation)
-                    .font(.subheadline)
+                    .font(translationFont)
+                    .lineSpacing(translationLineSpacing)
                     .lineLimit(maxLineCount)
+                    .multilineTextAlignment(textAlignment)
+                    .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
                     .frame(width: geo.size.width, alignment: .leading)
                     .background(
                         GeometryReader { proxy in
@@ -463,7 +718,10 @@ private struct VerseTranslationBlock: View {
                     )
 
                 Text(translation)
-                    .font(.subheadline)
+                    .font(translationFont)
+                    .lineSpacing(translationLineSpacing)
+                    .multilineTextAlignment(textAlignment)
+                    .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: geo.size.width, alignment: .leading)
                     .background(
@@ -498,5 +756,66 @@ private struct TranslationFullHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+struct BlockPageNavigationButtons: View {
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    var size: CGFloat = 44
+    var corner: CGFloat = 10
+    var fill: Color
+    var stroke: Color
+    var foreground: Color
+    var showsShadow = true
+    var fillsWidth = true
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            labeledButton(title: "Next mistake", systemName: "chevron.left", chevronLeading: true, enabled: canGoNext, action: onNext)
+            labeledButton(title: "Prev mistake", systemName: "chevron.right", chevronLeading: false, enabled: canGoPrevious, action: onPrevious)
+        }
+    }
+
+    private var rowHeight: CGFloat { min(size, 32) }
+
+    private func labeledButton(
+        title: String,
+        systemName: String,
+        chevronLeading: Bool,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if chevronLeading {
+                    Image(systemName: systemName)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                if !chevronLeading {
+                    Image(systemName: systemName)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+            }
+            .foregroundStyle(foreground.opacity(enabled ? 1 : 0.35))
+            .padding(.horizontal, 10)
+            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: rowHeight, maxHeight: rowHeight)
+            .background(fill)
+            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .stroke(stroke, lineWidth: 1.5)
+            )
+            .shadow(color: showsShadow ? .black.opacity(0.12) : .clear, radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(title)
     }
 }

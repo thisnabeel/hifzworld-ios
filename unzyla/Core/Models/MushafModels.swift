@@ -18,13 +18,13 @@ struct MushafInfo: Codable {
     }
 }
 
-struct MushafPage: Codable, Identifiable, Hashable {
+nonisolated struct MushafPage: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let position: Int
     let lines: [MushafLine]
 }
 
-struct MushafLine: Codable, Identifiable, Hashable {
+nonisolated struct MushafLine: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let position: Int
     let surahHeaderPosition: Int?
@@ -38,7 +38,7 @@ struct MushafLine: Codable, Identifiable, Hashable {
     }
 }
 
-struct MushafWord: Codable, Identifiable, Hashable {
+nonisolated struct MushafWord: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let position: Int
     let content: String
@@ -46,7 +46,7 @@ struct MushafWord: Codable, Identifiable, Hashable {
     let layout: WordLayout?
 }
 
-struct WordLayout: Codable, Hashable {
+nonisolated struct WordLayout: Codable, Hashable, Sendable {
     let x: Double?
     let y: Double?
     let width: Double?
@@ -92,9 +92,10 @@ struct SegmentFields: Codable {
     let title: String
     let category: String
     let categoryPosition: Int?
+    let mushaf: Int?
 
     enum CodingKeys: String, CodingKey {
-        case title, category
+        case title, category, mushaf
         case firstPage = "first_page"
         case lastPage = "last_page"
         case categoryPosition = "category_position"

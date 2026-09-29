@@ -15,7 +15,8 @@ enum GlobalConfigService {
     }
 
     @MainActor
-    static func checkMinVersion(client: HifzworldAPIClient = .shared) async -> MinVersionCheckResult {
+    static func checkMinVersion() async -> MinVersionCheckResult {
+        let client = HifzworldAPIClient.shared
         let bundleID = Bundle.main.bundleIdentifier ?? ""
         let installed = installedVersion()
         guard bundleID == hifzworldBundleID else {

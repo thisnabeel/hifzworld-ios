@@ -16,13 +16,14 @@
 		</dict>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone is used to record your recitation for a deck.</string>
+	<string>Microphone is used to record your recitation for a deck and to find verses by reciting them.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>aswaat-one.otf</string>
 		<string>DigitalKhattV2.otf</string>
 		<string>surah-name-v2.ttf</string>
 		<string>nastaleeq.ttf</string>
+		<string>NotoNastaliqUrdu-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

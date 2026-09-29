@@ -34,19 +34,38 @@ final class DeckRecordingPlayer {
 
     func play(recording: DeckRecording) {
         stop()
-        let url = DeckRecordingStore.shared.fileURL(for: recording)
+        play(url: DeckRecordingStore.shared.fileURL(for: recording), title: recording.displayTitle, id: recording.id, duration: recording.duration, deckID: recording.deckID)
+    }
+
+    func play(journal recording: JournalRecording) {
+        stop()
+        play(
+            url: JournalRecordingStore.shared.fileURL(for: recording),
+            title: recording.surahNamesLabel.isEmpty ? recording.timestampLabel : recording.surahNamesLabel,
+            id: recording.id,
+            duration: recording.duration,
+            deckID: nil
+        )
+    }
+
+    private func play(url: URL, title: String, id: UUID, duration: TimeInterval, deckID: UUID?) {
         do {
             let session = AVAudioSession.sharedInstance()
-            // `.defaultToSpeaker` is only valid with `.playAndRecord`; on device it
-            // fails with OSStatus -50 and playback never becomes active (no mini player).
             try session.setCategory(.playback, mode: .spokenAudio)
             try session.setActive(true)
 
             let audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer.prepareToPlay()
             player = audioPlayer
-            activeRecording = recording
-            duration = audioPlayer.duration
+            activeRecording = DeckRecording(
+                id: id,
+                deckID: deckID ?? UUID(),
+                createdAt: Date(),
+                duration: duration > 0 ? duration : audioPlayer.duration,
+                title: title,
+                fileName: url.lastPathComponent
+            )
+            self.duration = audioPlayer.duration
             position = 0
             audioPlayer.play()
             isPlaying = true
@@ -107,7 +126,7 @@ final class DeckRecordingPlayer {
     private func startTicker() {
         tickTimer?.invalidate()
         tickTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.handleTick()
             }
         }

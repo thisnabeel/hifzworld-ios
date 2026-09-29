@@ -22,7 +22,7 @@ enum ComparisonEngine {
 
     static func groupUnits(_ text: String) -> [Unit] {
         var units: [Unit] = []
-        var chars = Array(text)
+        let chars = Array(text)
         var i = 0
         while i < chars.count {
             var unit = String(chars[i])

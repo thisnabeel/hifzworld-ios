@@ -6,6 +6,7 @@ struct ReciteTabView: View {
     @Binding var selectedTab: Int
     let onCreateBundle: () -> Void
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var goPageField = ""
     @State private var activeWordScreenFrame: CGRect?
     @State private var versePanelTopY: CGFloat?
@@ -14,7 +15,16 @@ struct ReciteTabView: View {
     @State private var showDeleteAccountConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
+    @State private var showPickFriendSheet = false
+    @State private var showCoachMailSheet = false
+    @State private var showInboxSheet = false
+    @State private var showGuideSheet = false
+    @State private var unreadMailCount = 0
+    @State private var markAppearanceRevision = 0
+    @State private var pagePendingDeleteFromDeck: Int?
     @Bindable private var reviewPlayer = DeckRecordingPlayer.shared
+    @Bindable private var auth = AuthService.shared
+    @Bindable private var bookmarkStore = MushafBookmarkStore.shared
 
     private var showsSpread: Bool {
         verticalSizeClass == .compact
@@ -44,9 +54,15 @@ struct ReciteTabView: View {
         reviewPlayer.isActive
     }
 
-    /// Bottom chrome: review tools, paint tools, feedback viewing tools, or landscape tabs.
+    /// Bottom chrome: review tools, paint tools, feedback viewing tools, prompt mode, or landscape tabs.
     private var shouldShowBottomChrome: Bool {
-        viewModel.isReviewListener || shouldShowPaintTools || showsSpread
+        viewModel.isAyahPromptMode
+            || viewModel.isJournalRecording
+            || viewModel.isReviewListener
+            || viewModel.isCoachingFriend
+            || viewModel.isSelfMarking
+            || shouldShowPaintTools
+            || showsSpread
     }
 
     /// Top chrome stays dark; bottom inset follows mushaf light/dark.
@@ -63,6 +79,8 @@ struct ReciteTabView: View {
         return viewModel.isDarkMode ? AppTheme.mushafDarkBackground : .white
     }
 
+    private var deckSegmentBarHeight: CGFloat { showsSpread ? 32 : 36 }
+
     private var mushafPushOffset: CGFloat {
         guard showingVerseOverlay,
               let wordFrame = activeWordScreenFrame,
@@ -73,21 +91,51 @@ struct ReciteTabView: View {
         return max(0, wordFrame.maxY - panelTop + margin)
     }
 
+    /// Chrome that changes available mushaf height via layout (not overlay).
+    /// Included in contentStamp so UIKit-hosted pages rescale when chrome appears.
+    private var mushafLayoutChromeStamp: Int {
+        var hasher = Hasher()
+        hasher.combine(viewModel.isCoachingFriend)
+        hasher.combine(viewModel.reviewSession != nil)
+        hasher.combine(viewModel.deckEndRangeSelection != nil)
+        hasher.combine(viewModel.bundleSession?.bundleID)
+        hasher.combine(shouldShowBottomChrome)
+        hasher.combine(showsRecordingPlaybackChrome)
+        hasher.combine(showingVerseOverlay)
+        hasher.combine(showsSpread)
+        return hasher.finalize()
+    }
+
     private var mushafContentStamp: Int {
         var hasher = Hasher()
         hasher.combine(viewModel.isPaintMode)
+        hasher.combine(viewModel.isAyahPromptMode)
+        hasher.combine(viewModel.isJournalRecording)
+        hasher.combine(viewModel.ayahPromptCueCount)
+        hasher.combine(viewModel.ayahPromptRevealedWordIDs)
+        hasher.combine(viewModel.coachSubject?.id)
+        hasher.combine(viewModel.isMarkingMode)
         hasher.combine(viewModel.activePaintStyle)
         hasher.combine(viewModel.displayPaintedWords)
         hasher.combine(viewModel.arePaintedWordsVisible)
         hasher.combine(viewModel.isPaintInverted)
-        hasher.combine(viewModel.sessionMarks)
+        hasher.combine(viewModel.displaySessionMarks)
+        hasher.combine(viewModel.rangeHighlightPreviewIDs)
+        hasher.combine(viewModel.areSessionMarksVisible)
+        hasher.combine(viewModel.isSessionMarksInverted)
+        hasher.combine(viewModel.isTajweedMarkingEnabled)
+        hasher.combine(markAppearanceRevision)
         hasher.combine(viewModel.isViewingFeedbackMarks)
         hasher.combine(viewModel.isMarkingMode)
+        hasher.combine(viewModel.isFireMode)
+        hasher.combine(viewModel.sessionMarkHeatCounts)
         hasher.combine(viewModel.pageHidden)
         hasher.combine(viewModel.activeWordID)
         hasher.combine(viewModel.selectedVerse)
+        hasher.combine(viewModel.verseSearchHighlight)
+        hasher.combine(viewModel.verseSearchHighlightEpoch)
         hasher.combine(mushafPushOffset)
-        hasher.combine(showsSpread)
+        hasher.combine(mushafLayoutChromeStamp)
         hasher.combine(viewModel.pages[viewModel.currentPage]?.id)
         if let left = viewModel.activeSpread.leftPage {
             hasher.combine(viewModel.pages[left]?.id)
@@ -106,9 +154,38 @@ struct ReciteTabView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.pageHidden)
         .onAppear {
             viewModel.setPrefersSpreadLayout(showsSpread)
+            Task { await refreshUnreadMailCount() }
         }
         .onChange(of: showsSpread) { _, isSpread in
             viewModel.setPrefersSpreadLayout(isSpread)
+        }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn {
+                Task {
+                    await viewModel.reloadCoachMarksForVisiblePages()
+                    await refreshUnreadMailCount()
+                }
+            } else if !viewModel.isReviewListener, !viewModel.isViewingFeedbackMarks {
+                viewModel.sessionMarks = [:]
+                viewModel.sessionMarkIDs = [:]
+                viewModel.sessionMarkHeatCounts = [:]
+                viewModel.coachSubject = nil
+                viewModel.isMarkingMode = false
+                viewModel.isFireMode = false
+                unreadMailCount = 0
+            } else {
+                unreadMailCount = 0
+            }
+        }
+        .onChange(of: viewModel.isDrawerOpen) { _, open in
+            if open {
+                Task { await refreshUnreadMailCount() }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await refreshUnreadMailCount() }
+            }
         }
         .sheet(isPresented: Binding(
             get: { viewModel.isSettingsOpen },
@@ -120,6 +197,15 @@ struct ReciteTabView: View {
                     get: { viewModel.isDarkMode },
                     set: { viewModel.toggleDarkMode($0) }
                 ),
+                translationLanguage: Binding(
+                    get: { viewModel.translationLanguage },
+                    set: { viewModel.setTranslationLanguage($0) }
+                ),
+                isTajweedMarkingEnabled: Binding(
+                    get: { viewModel.isTajweedMarkingEnabled },
+                    set: { viewModel.setTajweedMarkingEnabled($0) }
+                ),
+                onMarkAppearanceChanged: { markAppearanceRevision &+= 1 },
                 onMushafChange: { id in Task { await viewModel.setMushafID(id) } }
             )
         }
@@ -132,19 +218,43 @@ struct ReciteTabView: View {
                 juzSegments: viewModel.juzSegments,
                 surahSegments: viewModel.surahSegments,
                 totalPages: viewModel.totalPages,
-                onGo: { viewModel.goToPage($0) }
+                mushafID: viewModel.mushafID,
+                onGo: { viewModel.goToPage($0) },
+                onGoToVerse: { page, verseKey in
+                    viewModel.goToVerse(page: page, verseKey: verseKey)
+                }
             )
+            .onAppear {
+                MushafBookmarkStore.shared.reload(mushafID: viewModel.mushafID)
+            }
         }
         .sheet(isPresented: Binding(
             get: { viewModel.isAddToBundleOpen },
             set: { viewModel.isAddToBundleOpen = $0 }
         )) {
+            let surahOffer = viewModel.surahSegment(containingPage: viewModel.currentPage)
             AddPageToBundleSheet(
                 currentPage: viewModel.currentPage,
+                surahOffer: surahOffer,
+                surahTitle: surahOffer.map { viewModel.suggestedTitle(for: $0) },
                 bundleStore: bundleStore,
                 onCreateBundle: {
-                    viewModel.isAddToBundleOpen = false
+                    viewModel.beginSinglePageDeck()
                     onCreateBundle()
+                },
+                onAddWholeSurah: {
+                    guard let segment = surahOffer else {
+                        viewModel.beginSinglePageDeck()
+                        onCreateBundle()
+                        return
+                    }
+                    viewModel.beginWholeSurahDeck(from: segment)
+                    onCreateBundle()
+                },
+                onSelectEndRange: surahOffer.map { segment in
+                    {
+                        viewModel.beginDeckEndRangeSelection(from: segment)
+                    }
                 }
             )
         }
@@ -153,6 +263,38 @@ struct ReciteTabView: View {
         }
         .sheet(isPresented: $showEditHandleSheet) {
             EditHandleSheet(auth: AuthService.shared)
+        }
+        .sheet(isPresented: $showPickFriendSheet) {
+            PickFriendSheet { user in
+                viewModel.enterCoachMode(subject: user)
+            }
+        }
+        .sheet(isPresented: $showCoachMailSheet) {
+            if let friend = viewModel.coachSubject, viewModel.isCoachingFriend {
+                CoachMailComposeSheet(
+                    recipient: friend,
+                    currentPage: viewModel.currentPage,
+                    mushafID: viewModel.mushafID
+                )
+            }
+        }
+        .sheet(isPresented: $showInboxSheet) {
+            InboxView { page, mushafID in
+                showInboxSheet = false
+                viewModel.isDrawerOpen = false
+                Task {
+                    if mushafID != viewModel.mushafID {
+                        await viewModel.setMushafID(mushafID)
+                    }
+                    viewModel.goToPage(page)
+                }
+            }
+            .onDisappear {
+                Task { await refreshUnreadMailCount() }
+            }
+        }
+        .sheet(isPresented: $showGuideSheet) {
+            AppGuideView()
         }
         .alert("Delete Account?", isPresented: $showDeleteAccountConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -185,7 +327,11 @@ struct ReciteTabView: View {
         VStack(spacing: 0) {
             mushafTopBar
             reviewBanner
+            deckEndRangeBanner
             mushafPagerStack
+            // Layout sibling (not overlay) so PageView scale-to-fit sees the reduced height
+            // alongside friend strip, review banner, and bottom tools.
+            deckSegmentBar
         }
         .background(reciteShellBackground)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -215,7 +361,32 @@ struct ReciteTabView: View {
             pageLabel: showsSpread ? viewModel.activeSpread.displayLabel : nil,
             selectedNarratorIDs: viewModel.selectedNarratorIDs,
             parentNarrators: viewModel.parentNarrators,
+            showsCoachPicker: auth.isSignedIn,
+            coachLabel: viewModel.isCoachingFriend
+                ? viewModel.coachSubject.map { subject in
+                    subject.handle.map { "@\($0)" } ?? subject.displayName
+                }
+                : nil,
+            unreadMailCount: unreadMailCount,
+            isCurrentPageBookmarked: bookmarkStore.mushafID == viewModel.mushafID
+                ? bookmarkStore.isBookmarked(viewModel.currentPage)
+                : bookmarkStore.isBookmarked(viewModel.currentPage, mushafID: viewModel.mushafID),
             onMenu: { viewModel.isDrawerOpen = true },
+            onCoachPick: {
+                // Self is the default mark target; the sheet is only for choosing a friend.
+                if !viewModel.isMarkingMode {
+                    viewModel.beginSelfMarking()
+                }
+                showPickFriendSheet = true
+            },
+            onCoachMail: {
+                guard viewModel.coachSubject != nil, viewModel.isCoachingFriend else { return }
+                showCoachMailSheet = true
+            },
+            onInbox: {
+                showInboxSheet = true
+            },
+            onExitCoach: { viewModel.exitCoachMode() },
             onSearch: {
                 goPageField = String(viewModel.currentPage)
                 viewModel.isGoToPageOpen = true
@@ -223,6 +394,12 @@ struct ReciteTabView: View {
             onAddToBundle: {
                 guard !viewModel.isDeckRecordingSession else { return }
                 viewModel.isAddToBundleOpen = true
+            },
+            onToggleBookmark: {
+                if bookmarkStore.mushafID != viewModel.mushafID {
+                    bookmarkStore.reload(mushafID: viewModel.mushafID)
+                }
+                bookmarkStore.toggle(page: viewModel.currentPage, mushafID: viewModel.mushafID)
             }
         )
     }
@@ -244,6 +421,22 @@ struct ReciteTabView: View {
         }
     }
 
+    @ViewBuilder
+    private var deckEndRangeBanner: some View {
+        if let selection = viewModel.deckEndRangeSelection {
+            DeckEndRangeBanner(
+                startPage: selection.startPage,
+                currentPage: viewModel.currentPage,
+                surahTitle: selection.suggestedTitle,
+                onCancel: { viewModel.cancelDeckEndRangeSelection() },
+                onDone: {
+                    viewModel.finishDeckEndRangeSelection()
+                    onCreateBundle()
+                }
+            )
+        }
+    }
+
     private var mushafPagerStack: some View {
         ZStack {
             AppTheme.pageBackground(dark: viewModel.isDarkMode)
@@ -261,12 +454,29 @@ struct ReciteTabView: View {
                     allowedPages: viewModel.bundleSession?.pages,
                     isDarkMode: viewModel.isDarkMode,
                     contentStamp: mushafContentStamp,
+                    // Keep paging enabled in SwiftUI — freezing mid-gesture via isPagingEnabled
+                    // rebuilds the pager and cancels hold-drag. Overlay freezes the scroll view.
                     isPagingEnabled: viewModel.isReviewPagingEnabled,
                     showsSpread: showsSpread
                 ) { identityPage in
                     AnyView(spreadOrPageContent(identityPage: identityPage))
                 }
                 .id("\(viewModel.mushafReloadToken)-\(showsSpread)")
+                .overlay {
+                    MushafHighlightInteractionOverlay(
+                        isEnabled: viewModel.allowsRangeHighlight,
+                        onRangeHighlightBegan: { word in
+                            viewModel.beginRangeHighlight(from: word)
+                        },
+                        onRangeHighlightChanged: { word in
+                            viewModel.updateRangeHighlight(to: word)
+                        },
+                        onRangeHighlightEnded: {
+                            Task { await viewModel.commitRangeHighlight() }
+                        }
+                    )
+                    .allowsHitTesting(false)
+                }
             }
 
             if viewModel.isReviewActive, !viewModel.isReviewListener, viewModel.pageHidden {
@@ -274,6 +484,73 @@ struct ReciteTabView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: showsSpread ? .horizontal : [])
+    }
+
+    @ViewBuilder
+    private var deckSegmentBar: some View {
+        if let session = viewModel.bundleSession {
+            let allowsEditing = !viewModel.isReviewActive && !viewModel.isDeckRecordingSession
+            BundleMushafSegmentBar(
+                session: session,
+                onSelect: { viewModel.goToBundlePage(at: $0) },
+                onExit: {
+                    if viewModel.isReviewActive {
+                        Task { await viewModel.endReviewSession() }
+                    } else {
+                        viewModel.exitBundleMushaf()
+                    }
+                },
+                showsExit: !viewModel.isDeckRecordingSession,
+                allowsEditing: allowsEditing,
+                totalPages: viewModel.totalPages,
+                onExtendBefore: { firstPage in
+                    extendActiveDeck(with: firstPage - 1)
+                },
+                onExtendAfter: { lastPage in
+                    extendActiveDeck(with: lastPage + 1)
+                },
+                onRequestDelete: { page in
+                    pagePendingDeleteFromDeck = page
+                }
+            )
+            .frame(height: deckSegmentBarHeight)
+            .background(.ultraThinMaterial)
+            .alert(
+                "Remove Page?",
+                isPresented: Binding(
+                    get: { pagePendingDeleteFromDeck != nil },
+                    set: { if !$0 { pagePendingDeleteFromDeck = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pagePendingDeleteFromDeck = nil
+                }
+                Button("Remove", role: .destructive) {
+                    if let page = pagePendingDeleteFromDeck {
+                        removePageFromActiveDeck(page)
+                    }
+                    pagePendingDeleteFromDeck = nil
+                }
+            } message: {
+                if let page = pagePendingDeleteFromDeck {
+                    Text("Remove page \(page) from \(session.title)?")
+                }
+            }
+        }
+    }
+
+    private func extendActiveDeck(with page: Int) {
+        guard let session = viewModel.bundleSession else { return }
+        guard page >= 1, page <= viewModel.totalPages else { return }
+        guard bundleStore.addPage(page, to: session.bundleID) else { return }
+        viewModel.reloadBundleSession(from: bundleStore, preferPage: page)
+    }
+
+    private func removePageFromActiveDeck(_ page: Int) {
+        guard let session = viewModel.bundleSession else { return }
+        guard bundleStore.removePage(page, from: session.bundleID) else { return }
+        viewModel.reloadBundleSession(from: bundleStore)
     }
 
     private var pageHiddenOverlay: some View {
@@ -295,31 +572,33 @@ struct ReciteTabView: View {
 
     private var bottomChromeStack: some View {
         VStack(spacing: 0) {
-            if let session = viewModel.bundleSession {
-                BundleMushafSegmentBar(
-                    session: session,
-                    onSelect: { viewModel.goToBundlePage(at: $0) },
-                    onExit: {
-                        if viewModel.isReviewActive {
-                            Task { await viewModel.endReviewSession() }
-                        } else {
-                            viewModel.exitBundleMushaf()
-                        }
-                    },
-                    showsExit: !viewModel.isDeckRecordingSession
-                )
-                .frame(height: showsSpread ? 34 : 44)
-            }
             if showsRecordingPlaybackChrome {
                 DeckRecordingMiniPlayer(player: reviewPlayer)
             } else if !showingVerseOverlay {
                 if shouldShowBottomChrome {
                     paintToolsChrome(selectedVerse: nil)
                 } else {
-                    paintModeEntryButton
-                        .padding(.leading, 16)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(spacing: 8) {
+                        if viewModel.showsBlockPageNavigation {
+                            BlockPageNavigationButtons(
+                                canGoPrevious: viewModel.previousBlockPage != nil,
+                                canGoNext: viewModel.nextBlockPage != nil,
+                                fill: viewModel.isDarkMode ? Color.white.opacity(0.10) : .white,
+                                stroke: viewModel.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.14),
+                                foreground: viewModel.isDarkMode ? .white : .black,
+                                onPrevious: { viewModel.goToPreviousBlockPage() },
+                                onNext: { viewModel.goToNextBlockPage() }
+                            )
+                        }
+                        HStack {
+                            paintModeEntryButton
+                            Spacer(minLength: 0)
+                            journalRecordEntryButton
+                            ayahPromptEntryButton
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
             }
         }
@@ -351,19 +630,41 @@ struct ReciteTabView: View {
     }
 
     private func paintToolsChrome(selectedVerse: SelectedVerseDetail?) -> some View {
-        ReciteBottomChrome(
+        let _ = markAppearanceRevision
+        return ReciteBottomChrome(
             isPaintMode: selectedVerse == nil ? viewModel.isPaintMode : false,
             isMarkingMode: viewModel.isMarkingMode,
             isReviewListener: viewModel.isReviewListener,
+            isCoachMarking: viewModel.isCoachingFriend || viewModel.isSelfMarking,
+            showsOwnMarkViewTools: viewModel.isSelfMarking,
+            areSessionMarksVisible: viewModel.areSessionMarksVisible,
+            isSessionMarksInverted: viewModel.isSessionMarksInverted,
+            hasSessionMarks: viewModel.hasSessionMarksOnVisiblePages,
+            onToggleSessionMarksVisible: { viewModel.toggleSessionMarksVisible() },
+            onToggleSessionMarksInverted: { viewModel.toggleSessionMarksInverted() },
             pageHidden: viewModel.pageHidden,
             isCompactLandscape: showsSpread,
             isDarkMode: viewModel.isDarkMode,
-            showsPaintTools: shouldShowPaintTools || viewModel.isReviewListener,
-            allowsPainting: !viewModel.isViewingFeedbackMarks,
+            translationLanguage: viewModel.translationLanguage,
+            showsPaintTools: !viewModel.isAyahPromptMode && (shouldShowPaintTools || viewModel.isReviewListener),
+            allowsPainting: !viewModel.isViewingFeedbackMarks && !viewModel.isAyahPromptMode,
+            isAyahPromptMode: viewModel.isAyahPromptMode,
+            ayahPromptCueCount: viewModel.ayahPromptCueCount,
+            isJournalRecording: viewModel.isJournalRecording,
+            onToggleAyahPromptMode: { viewModel.toggleAyahPromptMode() },
+            onToggleJournalRecording: { Task { await viewModel.toggleJournalRecording() } },
+            onSelectAyahPromptCueCount: { viewModel.setAyahPromptCueCount($0) },
             selectedTab: $selectedTab,
             activeMarkType: viewModel.activeMarkType,
+            orderedMarkTypes: MarkTypeAppearance.orderedTypes(),
+            showsMarkTypePills: viewModel.isTajweedMarkingEnabled,
+            markTypeColors: Dictionary(
+                uniqueKeysWithValues: MistakeMarkType.allCases.map { ($0, MarkTypeAppearance.color(for: $0)) }
+            ),
             onToggleMarkingMode: { viewModel.toggleMarkingMode() },
             onSelectMarkType: { viewModel.setActiveMarkType($0) },
+            isFireMode: viewModel.isFireMode,
+            onToggleFireMode: { viewModel.toggleFireMode() },
             onTogglePageHidden: { viewModel.togglePageHidden() },
             selectedVerse: selectedVerse,
             activePaintStyle: viewModel.activePaintStyle,
@@ -374,7 +675,12 @@ struct ReciteTabView: View {
             onTogglePaintedWordsVisible: { viewModel.togglePaintedWordsVisible() },
             onSelectPaintStyle: viewModel.setActivePaintStyle,
             onTogglePaintInverted: { viewModel.togglePaintInverted() },
-            onDismissVerseRef: { viewModel.clearSelectedVerseRef() }
+            onDismissVerseRef: { viewModel.clearSelectedVerseRef() },
+            showsBlockPageNavigation: !viewModel.isPaintMode && !viewModel.isAyahPromptMode && viewModel.showsBlockPageNavigation,
+            canGoToPreviousBlockPage: viewModel.previousBlockPage != nil,
+            canGoToNextBlockPage: viewModel.nextBlockPage != nil,
+            onGoToPreviousBlockPage: { viewModel.goToPreviousBlockPage() },
+            onGoToNextBlockPage: { viewModel.goToNextBlockPage() }
         )
     }
 
@@ -386,9 +692,18 @@ struct ReciteTabView: View {
                 .onTapGesture { viewModel.isDrawerOpen = false }
             DrawerView(
                 user: AuthService.shared.currentUser,
+                unreadMailCount: unreadMailCount,
                 onSettings: {
                     viewModel.isDrawerOpen = false
                     viewModel.isSettingsOpen = true
+                },
+                onGuide: {
+                    viewModel.isDrawerOpen = false
+                    showGuideSheet = true
+                },
+                onInbox: {
+                    viewModel.isDrawerOpen = false
+                    showInboxSheet = true
                 },
                 onSendFeedback: {
                     viewModel.isDrawerOpen = false
@@ -443,27 +758,123 @@ struct ReciteTabView: View {
         }
     }
 
+    private func refreshUnreadMailCount() async {
+        guard auth.isSignedIn else {
+            unreadMailCount = 0
+            return
+        }
+        do {
+            unreadMailCount = try await MessagesService().unreadCount()
+        } catch {
+            // Keep last known count if refresh fails.
+        }
+    }
+
     private var paintModeEntryButton: some View {
-        Button {
-            viewModel.togglePaintMode()
+        let isSignedIn = AuthService.shared.isSignedIn
+        let isMarking = viewModel.isSelfMarking || (viewModel.isCoachingFriend && viewModel.isMarkingMode)
+        let markColor = MarkTypeAppearance.color(for: viewModel.activeMarkType)
+
+        return Button {
+            if isSignedIn {
+                viewModel.toggleSelfMarkingFromEntry()
+            } else {
+                viewModel.togglePaintMode()
+            }
         } label: {
-            Image(systemName: "paintbrush.fill")
+            Image(systemName: isSignedIn ? "highlighter" : "paintbrush.fill")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(viewModel.isDarkMode ? .white : .black)
+                .foregroundStyle(
+                    isMarking
+                        ? .black
+                        : (viewModel.isDarkMode ? .white : .black)
+                )
                 .frame(width: 44, height: 44)
-                .background(viewModel.isDarkMode ? Color.white.opacity(0.10) : Color.white)
+                .background(
+                    isMarking
+                        ? markColor
+                        : (viewModel.isDarkMode ? Color.white.opacity(0.10) : Color.white)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(
-                            viewModel.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.14),
+                            isMarking
+                                ? Color.clear
+                                : (viewModel.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.14)),
                             lineWidth: 1.5
                         )
                 )
                 .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Paint mode")
+        .accessibilityLabel(isSignedIn ? "Mark Mushaf" : "Paint mode")
+    }
+
+    private var ayahPromptEntryButton: some View {
+        let isOn = viewModel.isAyahPromptMode
+        let dark = viewModel.isDarkMode
+        let foreground: Color = isOn
+            ? (dark ? .black : .white)
+            : (dark ? .white : .black)
+        let fill: Color = isOn
+            ? (dark ? .white : .black)
+            : (dark ? Color.white.opacity(0.10) : .white)
+        let stroke: Color = isOn
+            ? .clear
+            : (dark ? Color.white.opacity(0.14) : Color.black.opacity(0.14))
+
+        return Button {
+            viewModel.toggleAyahPromptMode()
+        } label: {
+            Image("HoldingHands")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .padding(10)
+                .foregroundStyle(foreground)
+                .frame(width: 44, height: 44)
+                .background(fill)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(stroke, lineWidth: 1.5)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isJournalRecording)
+        .accessibilityLabel(isOn ? "Exit ayah prompt mode" : "Ayah prompt mode")
+    }
+
+    private var journalRecordEntryButton: some View {
+        let recording = viewModel.isJournalRecording
+        return Button {
+            Task { await viewModel.toggleJournalRecording() }
+        } label: {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(recording ? Color.white : Color.red)
+                .frame(width: 44, height: 44)
+                .background(
+                    recording
+                        ? Color.red
+                        : (viewModel.isDarkMode ? Color.white.opacity(0.10) : Color.white)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            recording
+                                ? Color.clear
+                                : (viewModel.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.14)),
+                            lineWidth: 1.5
+                        )
+                )
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(recording ? "Stop recording" : "Record")
     }
 
     @ViewBuilder
@@ -493,7 +904,6 @@ struct ReciteTabView: View {
                             bookGutterShadow(edge: .leading)
                         }
                 }
-                .padding(.horizontal, 10)
                 .padding(.bottom, 24)
             }
             .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
@@ -501,13 +911,12 @@ struct ReciteTabView: View {
             LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode) {
                 pageContent(spread.rightPage, fillsHalfSpread: true)
                     .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.horizontal, 13)
                     .padding(.bottom, 24)
             }
             .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
         } else {
             pageContent(spread.rightPage, fillsHalfSpread: false)
-                .padding(.horizontal, 13)
+                .padding(.horizontal, 4)
         }
     }
 
@@ -553,10 +962,20 @@ struct ReciteTabView: View {
                 paintedWords: viewModel.displayPaintedWords,
                 arePaintedWordsVisible: viewModel.arePaintedWordsVisible,
                 isPaintInverted: viewModel.isPaintInverted,
-                sessionMarks: viewModel.isReviewListener ? viewModel.sessionMarks : [:],
+                isAyahPromptMode: viewModel.isAyahPromptMode,
+                ayahPromptVisibleWordIDs: viewModel.ayahPromptVisibleWordIDs,
+                sessionMarks: viewModel.displaySessionMarks,
+                areSessionMarksVisible: viewModel.areSessionMarksVisible,
+                isSessionMarksInverted: viewModel.isSessionMarksInverted,
+                sessionMarkColors: MarkTypeAppearance.uiColorMap(),
+                sessionMarkHeatCounts: viewModel.sessionMarkHeatCounts,
+                isFireMode: viewModel.isFireMode,
                 contentPushOffset: mushafPushOffset,
                 fillsHalfSpread: fillsHalfSpread,
                 gutterEdge: gutterEdge,
+                pageHeader: viewModel.pageHeaderInfo(for: pageNumber),
+                allowsRangeHighlight: viewModel.allowsRangeHighlight,
+                verseSearchHighlightWordIDs: viewModel.verseSearchHighlightWordIDs(for: pageNumber),
                 onWordTap: { word in Task { await viewModel.handleWordTap(word, pageNumber: pageNumber) } },
                 onActiveWordFrameChange: { frame in
                     if pageNumber == viewModel.currentPage || pageNumber == viewModel.activeSpread.leftPage {

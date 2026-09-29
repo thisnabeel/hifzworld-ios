@@ -134,20 +134,22 @@ final class AudioPlayerService {
             forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
-            guard let self else { return }
-            self.position = max(0, time.seconds - start)
-            if let clipEnd = self.clipEndTime, time >= clipEnd {
-                self.stop()
-                return
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.position = max(0, time.seconds - start)
+                if let clipEnd = self.clipEndTime, time >= clipEnd {
+                    self.stop()
+                    return
+                }
+                NowPlayingController.shared.update(
+                    title: self.title,
+                    artist: self.artist.isEmpty ? nil : self.artist,
+                    durationMillis: self.duration * 1000,
+                    positionMillis: self.position * 1000,
+                    playbackRate: self.isPlaying ? 1 : 0,
+                    artworkURL: self.artworkURL
+                )
             }
-            NowPlayingController.shared.update(
-                title: self.title,
-                artist: self.artist.isEmpty ? nil : self.artist,
-                durationMillis: self.duration * 1000,
-                positionMillis: self.position * 1000,
-                playbackRate: self.isPlaying ? 1 : 0,
-                artworkURL: self.artworkURL
-            )
         }
 
         endObserver = NotificationCenter.default.addObserver(
@@ -155,7 +157,9 @@ final class AudioPlayerService {
             object: player.currentItem,
             queue: .main
         ) { [weak self] _ in
-            self?.stop()
+            Task { @MainActor [weak self] in
+                self?.stop()
+            }
         }
     }
 }

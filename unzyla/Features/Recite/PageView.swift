@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SurahHeaderLineView: View {
     let surahHeaderPosition: Int
@@ -28,6 +29,13 @@ struct PageLineMeta: Identifiable {
     let suppress: Bool
 }
 
+struct MushafPageHeaderInfo: Equatable {
+    let surahName: String
+    let surahNumber: Int
+    let pageNumber: Int
+    let juzNumber: Int
+}
+
 struct PageView: View {
     let page: MushafPage
     let mushafID: Int
@@ -38,11 +46,22 @@ struct PageView: View {
     let paintedWords: [Int: WordPaintStyle]
     let arePaintedWordsVisible: Bool
     let isPaintInverted: Bool
+    var isAyahPromptMode = false
+    var ayahPromptVisibleWordIDs: Set<Int> = []
     let sessionMarks: [Int: MistakeMarkType]
+    var areSessionMarksVisible = true
+    var isSessionMarksInverted = false
+    var sessionMarkColors: [MistakeMarkType: UIColor] = [:]
+    var sessionMarkHeatCounts: [Int: Int] = [:]
+    var isFireMode = false
     let contentPushOffset: CGFloat
     var fillsHalfSpread = false
     /// When set in landscape, adds extra padding on the book-spine side of this page.
     var gutterEdge: HorizontalEdge? = nil
+    /// IndoPak 13-line header (surah / Arabic page / juz). Nil hides the bar.
+    var pageHeader: MushafPageHeaderInfo? = nil
+    var allowsRangeHighlight = false
+    var verseSearchHighlightWordIDs: Set<Int> = []
     let onWordTap: (MushafWord) -> Void
     var onActiveWordFrameChange: ((CGRect?) -> Void)?
 
@@ -73,50 +92,113 @@ struct PageView: View {
         } ?? 0
     }
 
-    private var lineHeight: CGFloat { MushafTypography.lineHeight(mushafID: mushafID) }
+    private var naturalLineHeight: CGFloat { MushafTypography.lineHeight(mushafID: mushafID) }
 
-    private var outerPadding: CGFloat { fillsHalfSpread ? 10 : 2 }
-    private var spinePadding: CGFloat { fillsHalfSpread ? 22 : outerPadding }
+    /// Odd pages sit on the right leaf; even on the left (RTL open book).
+    private var isRightPage: Bool { !page.position.isMultiple(of: 2) }
 
-    private var leadingPadding: CGFloat {
-        gutterEdge == .leading ? spinePadding : outerPadding
+    private var notesGutterWidth: CGFloat { fillsHalfSpread ? 0 : 4 }
+    /// Breathing room between text / line rules and the outer border.
+    private var contentToBorderGap: CGFloat { fillsHalfSpread ? 12 : 14 }
+    private var innerEdgePadding: CGFloat { fillsHalfSpread ? 12 : 10 }
+    private var spinePadding: CGFloat { fillsHalfSpread ? 22 : innerEdgePadding }
+
+    /// Portrait-only micro shift toward the spine so left/right leaves read clearly.
+    private var portraitLeafOffset: CGFloat {
+        guard !fillsHalfSpread else { return 0 }
+        return isRightPage ? -1 : 1
     }
 
-    private var trailingPadding: CGFloat {
-        gutterEdge == .trailing ? spinePadding : outerPadding
+    private var outerBorderEdge: HorizontalEdge { isRightPage ? .trailing : .leading }
+
+    private var innerSidePadding: CGFloat {
+        if isRightPage {
+            return gutterEdge == .leading ? spinePadding : innerEdgePadding
+        }
+        return gutterEdge == .trailing ? spinePadding : innerEdgePadding
+    }
+
+    private var topPad: CGFloat {
+        if pageHeader != nil { return fillsHalfSpread ? 1 : 2 }
+        return fillsHalfSpread ? 4 : 8
+    }
+    private var bottomPad: CGFloat { fillsHalfSpread ? 12 : 20 }
+    private var headerBlockHeight: CGFloat { pageHeader == nil ? 0 : 26 }
+
+    private var visibleLineCount: Int {
+        lineMetas.reduce(0) { $0 + ($1.suppress ? 0 : 1) }
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(lineMetas.enumerated()), id: \.element.id) { index, meta in
-                if !meta.suppress {
-                    lineView(meta: meta, index: index)
+        Group {
+            if fillsHalfSpread {
+                pageColumn(lineHeight: naturalLineHeight)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            } else {
+                // Scale to the layout height already reduced by top/bottom chrome
+                // (friend strip, review banner, deck segment bar, tools via safeAreaInset).
+                GeometryReader { geo in
+                    let naturalHeight = topPad + bottomPad + headerBlockHeight
+                        + CGFloat(visibleLineCount) * naturalLineHeight
+                    let available = max(geo.size.height, 1)
+                    let scale = min(1, available / max(naturalHeight, 1))
+                    pageColumn(lineHeight: naturalLineHeight)
+                        .frame(width: geo.size.width, alignment: .top)
+                        .scaleEffect(scale, anchor: .top)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                 }
             }
         }
-        .frame(maxWidth: fillsHalfSpread ? .infinity : 600)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: fillsHalfSpread ? nil : .infinity,
-            alignment: .top
-        )
-        .padding(.top, fillsHalfSpread ? 4 : 8)
-        .padding(.bottom, fillsHalfSpread ? 12 : 32)
-        .padding(.leading, leadingPadding)
-        .padding(.trailing, trailingPadding)
-        .offset(y: -contentPushOffset)
+        .offset(x: portraitLeafOffset, y: -contentPushOffset)
         .animation(.easeInOut(duration: 0.22), value: contentPushOffset)
+        .animation(.easeInOut(duration: 0.2), value: page.position)
         .background(AppTheme.pageBackground(dark: isDarkMode))
     }
 
+    private func pageColumn(lineHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            if let pageHeader {
+                MushafPageHeaderBar(
+                    surahName: pageHeader.surahName,
+                    surahNumber: pageHeader.surahNumber,
+                    pageNumber: pageHeader.pageNumber,
+                    juzNumber: pageHeader.juzNumber,
+                    isDarkMode: isDarkMode
+                )
+                .padding(.bottom, 2)
+            }
+
+            VStack(spacing: 0) {
+                ForEach(Array(lineMetas.enumerated()), id: \.element.id) { index, meta in
+                    if !meta.suppress {
+                        lineView(meta: meta, index: index, lineHeight: lineHeight)
+                    }
+                }
+            }
+            // Gap between text and the outer rule (border height matches the lines only).
+            .padding(.leading, isRightPage ? 0 : contentToBorderGap)
+            .padding(.trailing, isRightPage ? contentToBorderGap : 0)
+            .overlay(alignment: outerBorderEdge == .trailing ? .trailing : .leading) {
+                MushafOuterBorder(edge: outerBorderEdge, isDarkMode: isDarkMode)
+            }
+        }
+        .frame(maxWidth: fillsHalfSpread ? .infinity : 600)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .padding(.top, topPad)
+        .padding(.bottom, bottomPad)
+        .padding(.leading, isRightPage ? innerSidePadding : notesGutterWidth)
+        .padding(.trailing, isRightPage ? notesGutterWidth : innerSidePadding)
+    }
+
     @ViewBuilder
-    private func lineView(meta: PageLineMeta, index: Int) -> some View {
+    private func lineView(meta: PageLineMeta, index: Int, lineHeight: CGFloat) -> some View {
         let hasRenderableWords = meta.line.words.contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let isGlyphHeader = mushafID == MushafID.indoPak.rawValue && !hasRenderableWords
+        let headerPos = meta.line.surahHeaderPosition ?? 0
 
         if isGlyphHeader {
             SurahHeaderLineView(
-                surahHeaderPosition: meta.line.surahHeaderPosition ?? 0,
+                surahHeaderPosition: headerPos,
                 lineHeight: lineHeight,
                 isDarkMode: isDarkMode
             )
@@ -131,7 +213,16 @@ struct PageView: View {
                 paintedWords: paintedWords,
                 arePaintedWordsVisible: arePaintedWordsVisible,
                 isPaintInverted: isPaintInverted,
+                isAyahPromptMode: isAyahPromptMode,
+                ayahPromptVisibleWordIDs: ayahPromptVisibleWordIDs,
                 sessionMarks: sessionMarks,
+                areSessionMarksVisible: areSessionMarksVisible,
+                isSessionMarksInverted: isSessionMarksInverted,
+                sessionMarkColors: sessionMarkColors,
+                sessionMarkHeatCounts: sessionMarkHeatCounts,
+                isFireMode: isFireMode,
+                verseSearchHighlightWordIDs: verseSearchHighlightWordIDs,
+                allowsWordTap: true,
                 onWordTap: onWordTap,
                 onActiveWordFrameChange: onActiveWordFrameChange
             )

@@ -16,6 +16,36 @@ struct HifzworldUser: Codable, Identifiable, Hashable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
+
+    init(
+        id: UUID,
+        email: String?,
+        handle: String?,
+        displayName: String,
+        avatarURL: String?,
+        createdAt: Date?,
+        updatedAt: Date?
+    ) {
+        self.id = id
+        self.email = email
+        self.handle = handle
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        email = try container.decodeIfPresent(String.self, forKey: .email)
+        handle = try container.decodeIfPresent(String.self, forKey: .handle)
+        let rawName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        displayName = (rawName?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? "User"
+        avatarURL = try container.decodeIfPresent(String.self, forKey: .avatarURL)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
 }
 
 struct AuthResponse: Codable {
@@ -115,10 +145,14 @@ struct SessionMarkDTO: Codable, Identifiable, Hashable {
     let wordID: Int
     let verseKey: String
     let pageNumber: Int
+    let lineNumber: Int?
+    let wordPosition: Int?
     let mushafID: Int
     let markType: String
     let note: String?
     let createdAt: Date?
+    let markedAt: Date?
+    let unmarkedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, note
@@ -129,10 +163,16 @@ struct SessionMarkDTO: Codable, Identifiable, Hashable {
         case wordID = "word_id"
         case verseKey = "verse_key"
         case pageNumber = "page_number"
+        case lineNumber = "line_number"
+        case wordPosition = "word_position"
         case mushafID = "mushaf_id"
         case markType = "mark_type"
         case createdAt = "created_at"
+        case markedAt = "marked_at"
+        case unmarkedAt = "unmarked_at"
     }
+
+    var isUnmarked: Bool { unmarkedAt != nil }
 }
 
 struct FeedbackSessionDTO: Codable, Identifiable, Hashable {
@@ -195,17 +235,21 @@ struct FriendBundlesResponse: Codable {
 }
 
 enum MistakeMarkType: String, CaseIterable, Identifiable {
+    case mistake
     case tajweed
-    case pronunciation
-    case skipped
-    case added
-    case hesitation
-    case other
 
     var id: String { rawValue }
 
     var title: String {
         rawValue.capitalized
+    }
+
+    /// Maps legacy server values onto the two supported types.
+    static func resolved(from raw: String?) -> MistakeMarkType {
+        guard let raw, let type = MistakeMarkType(rawValue: raw) else {
+            return .mistake
+        }
+        return type
     }
 }
 
@@ -219,6 +263,8 @@ struct ReviewSessionContext: Equatable {
     let bundleServerID: UUID
     let role: Role
     let partnerName: String
+    /// Reciter whose Mushaf is being marked during the live session.
+    let reciterID: UUID
 }
 
 struct APIErrorResponse: Codable {

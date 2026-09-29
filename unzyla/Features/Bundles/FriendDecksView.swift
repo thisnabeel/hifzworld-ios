@@ -7,6 +7,8 @@ struct FriendDecksView: View {
     @Bindable var auth: AuthService
     @Bindable var reciteVM: ReciteViewModel
     let onOpenInMushaf: (UUID, Int) -> Void
+    /// When true, this is the Decks tab root while “Marking for” that friend.
+    var isViewingAsRoot: Bool = false
 
     @State private var bundles: [RemoteMushafBundle] = []
     @State private var isLoading = true
@@ -14,6 +16,10 @@ struct FriendDecksView: View {
     @State private var showCreateSheet = false
     @State private var newTitle = ""
     @State private var newDescription = ""
+
+    private var friendLabel: String {
+        friend.handle.map { "@\($0)" } ?? friend.displayName
+    }
 
     var body: some View {
         Group {
@@ -34,7 +40,7 @@ struct FriendDecksView: View {
             } else {
                 List {
                     Section {
-                        Text("Viewing as \(friend.displayName). Decks are owned by them — you can open, edit pages, and join review as their listener.")
+                        Text(introCopy)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -69,8 +75,8 @@ struct FriendDecksView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle(friend.handle.map { "@\($0)" } ?? friend.displayName)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(friendLabel)
+        .navigationBarTitleDisplayMode(isViewingAsRoot ? .large : .inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -80,6 +86,7 @@ struct FriendDecksView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("New deck for \(friend.displayName)")
             }
         }
         .sheet(isPresented: $showCreateSheet) {
@@ -92,7 +99,7 @@ struct FriendDecksView: View {
                 }
             )
         }
-        .task {
+        .task(id: friend.id) {
             await reload()
         }
         .refreshable {
@@ -106,6 +113,13 @@ struct FriendDecksView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    private var introCopy: String {
+        if isViewingAsRoot {
+            return "Marking for \(friendLabel). Showing their decks — open one to review together, or create a new deck for them."
+        }
+        return "Viewing as \(friend.displayName). Decks are owned by them — you can open, edit pages, and join review as their listener."
     }
 
     @ViewBuilder

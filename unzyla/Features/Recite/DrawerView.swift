@@ -2,12 +2,17 @@ import SwiftUI
 
 struct DrawerView: View {
     let user: HifzworldUser?
+    var unreadMailCount: Int = 0
     let onSettings: () -> Void
+    let onGuide: () -> Void
+    let onInbox: () -> Void
     let onSendFeedback: () -> Void
     let onEditHandle: () -> Void
     let onSignOut: () -> Void
     let onDeleteAccount: () -> Void
     let onClose: () -> Void
+
+    private static let guideOrange = Color(red: 0.95, green: 0.45, blue: 0.12)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -64,7 +69,19 @@ struct DrawerView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
 
+            guideButton
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+
             VStack(spacing: 4) {
+                if user != nil {
+                    drawerRow(
+                        title: "Inbox",
+                        systemImage: "envelope.fill",
+                        badge: unreadMailCount > 0 ? unreadMailCount : nil,
+                        action: onInbox
+                    )
+                }
                 drawerRow(
                     title: "Send Feedback",
                     systemImage: "bubble.left.and.bubble.right.fill",
@@ -88,6 +105,30 @@ struct DrawerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(AppTheme.drawerBackground)
+    }
+
+    private var guideButton: some View {
+        Button(action: onGuide) {
+            HStack(spacing: 12) {
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28)
+                Text("New Here? Guide...")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .background(Self.guideOrange)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("New Here Guide")
     }
 
     private var tipCard: some View {
@@ -192,7 +233,12 @@ struct DrawerView: View {
         return "?"
     }
 
-    private func drawerRow(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    private func drawerRow(
+        title: String,
+        systemImage: String,
+        badge: Int? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
@@ -203,6 +249,14 @@ struct DrawerView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
                 Spacer()
+                if let badge, badge > 0 {
+                    Text(badge > 99 ? "99+" : "\(badge)")
+                        .font(.caption2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.accentColor))
+                }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.35))

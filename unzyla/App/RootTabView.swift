@@ -32,7 +32,10 @@ struct RootTabView: View {
                                 bundleStore: bundleStore,
                                 selectedTab: $selectedTab,
                                 onCreateBundle: {
-                                    newBundleTitle = ""
+                                    if reciteVM.pendingNewDeck == nil {
+                                        reciteVM.beginSinglePageDeck()
+                                    }
+                                    newBundleTitle = reciteVM.pendingNewDeck?.suggestedTitle ?? ""
                                     newBundleDescription = ""
                                     showCreateBundleFromMushaf = true
                                 }
@@ -55,11 +58,22 @@ struct RootTabView: View {
                             }
                             .tag(1)
 
-                            FeedbackTabView(auth: auth, onOpenSession: openFeedbackSession)
-                                .tabItem {
-                                    Label("Feedback", systemImage: "text.badge.checkmark")
-                                }
-                                .tag(2)
+                            FeedbackTabView(
+                                auth: auth,
+                                bundleStore: bundleStore,
+                                reciteVM: reciteVM,
+                                onOpenMushafMark: openMushafMark
+                            )
+                            .tabItem {
+                                Label("Marks", systemImage: "text.badge.checkmark")
+                            }
+                            .tag(2)
+
+                            JournalTabView(auth: auth)
+                            .tabItem {
+                                Label("Journal", systemImage: "book.pages")
+                            }
+                            .tag(3)
                         }
                         .background(TabBarBundlesHighlight(isActive: reciteVM.isBundleMushafMode, selectedTab: selectedTab, bundlesTabIndex: 1))
                         // On Mushaf, playback chrome lives under the deck page bar.
@@ -67,12 +81,13 @@ struct RootTabView: View {
                         .safeAreaInset(edge: .bottom, spacing: 0) {
                             if reviewPlayer.isActive,
                                !recorder.isRecording,
-                               selectedTab != 0 {
+                               selectedTab != 0,
+                               selectedTab != 3 {
                                 DeckRecordingMiniPlayer(player: reviewPlayer)
                             }
                         }
 
-                        if recorder.isRecording {
+                        if recorder.isRecording, !recorder.isJournalSession {
                             recordingStopControl
                                 .padding(.trailing, 16)
                                 // Sit just above the tab bar (same clearance the old overlay used).
@@ -95,7 +110,17 @@ struct RootTabView: View {
         }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             guard signedIn else { return }
-            Task { await claimInviteIfNeeded() }
+            Task {
+                await claimInviteIfNeeded()
+                await reciteVM.flushPendingMushafMarksIfNeeded()
+            }
+        }
+        .onChange(of: network.isConnected) { _, connected in
+            guard connected else { return }
+            Task {
+                await reciteVM.flushPendingMushafMarksIfNeeded()
+                reciteVM.resumeMushafHydration()
+            }
         }
         .onChange(of: inviteHandler.pendingToken) { _, token in
             guard token != nil else { return }
@@ -119,18 +144,39 @@ struct RootTabView: View {
             Text(inviteHandler.errorMessage ?? "")
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            Task { await reciteVM.checkMinVersion() }
+            Task {
+                await reciteVM.checkMinVersion()
+                await reciteVM.flushPendingMushafMarksIfNeeded()
+                reciteVM.resumeMushafHydration()
+            }
         }
-        .sheet(isPresented: $showCreateBundleFromMushaf) {
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            reciteVM.continueMushafHydrationInBackground()
+        }
+        .sheet(isPresented: $showCreateBundleFromMushaf, onDismiss: {
+            reciteVM.clearPendingNewDeck()
+        }) {
             CreateBundleSheet(
                 title: $newBundleTitle,
                 description: $newBundleDescription,
                 onCreate: {
+                    let pending = reciteVM.pendingNewDeck
+                    let pages = pending?.pages ?? [reciteVM.currentPage]
                     let bundle = bundleStore.createBundle(
                         title: newBundleTitle,
                         description: newBundleDescription
                     )
-                    bundleStore.addPage(reciteVM.currentPage, to: bundle.id)
+                    _ = bundleStore.addPageRange(
+                        from: pages.first ?? reciteVM.currentPage,
+                        through: pages.last ?? reciteVM.currentPage,
+                        to: bundle.id,
+                        maxPage: reciteVM.totalPages
+                    )
+                    // Ensure sparse page lists (if any) are still covered.
+                    for page in pages {
+                        bundleStore.addPage(page, to: bundle.id)
+                    }
+                    reciteVM.clearPendingNewDeck()
                 }
             )
         }
@@ -178,6 +224,9 @@ struct RootTabView: View {
 
     private func startDeckRecording(_ bundle: MushafBundle) async -> String? {
         reviewPlayer.stop()
+        if reciteVM.isJournalRecording {
+            reciteVM.finishJournalRecording()
+        }
         guard !bundle.pageNumbers.isEmpty else {
             return "Add pages to this deck before recording."
         }
@@ -214,29 +263,25 @@ struct RootTabView: View {
         selectedTab = 0
     }
 
-    private func openFeedbackSession(_ session: FeedbackSessionDTO) {
-        guard !recorder.isRecording else { return }
+    private func openMushafMark(_ mark: MushafMarkDTO, filteredPages: Set<Int>) {
+        selectedTab = 0
+        let subject = mark.subject ?? HifzworldUser(
+            id: mark.subjectID,
+            email: nil,
+            handle: nil,
+            displayName: "Friend",
+            avatarURL: nil,
+            createdAt: nil,
+            updatedAt: nil
+        )
+        reciteVM.openCoachMarks(
+            subject: subject,
+            page: mark.pageNumber,
+            marks: [mark],
+            filteredPages: filteredPages
+        )
         Task {
-            let bundle: MushafBundle?
-            #if DEBUG
-            if session.id == FeedbackSessionDTO.stubPreviewID {
-                bundle = bundleStore.upsertPreviewDeck(
-                    serverID: FeedbackSessionDTO.stubBundleServerID,
-                    title: session.bundleTitle,
-                    pageNumbers: [42, 49],
-                    mushafID: reciteVM.mushafID
-                )
-            } else {
-                bundle = bundleStore.bundle(serverID: session.mushafBundleID)
-            }
-            #else
-            bundle = bundleStore.bundle(serverID: session.mushafBundleID)
-            #endif
-
-            guard let bundle, !bundle.pageNumbers.isEmpty else { return }
-            // Switch to Mushaf first so the new deck mounts on a visible tab.
-            selectedTab = 0
-            await reciteVM.reviewFeedbackSession(session, bundle: bundle)
+            await reciteVM.reloadCoachMarksForVisiblePages()
         }
     }
 

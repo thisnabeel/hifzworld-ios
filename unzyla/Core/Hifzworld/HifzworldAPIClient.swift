@@ -8,9 +8,9 @@ struct HifzworldAPIClient: Sendable {
     init(session: URLSession = .shared) {
         self.session = session
         self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        self.decoder.dateDecodingStrategy = ISO8601Coding.decodingStrategy
         self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
+        self.encoder.dateEncodingStrategy = ISO8601Coding.encodingStrategy
     }
 
     static let shared = HifzworldAPIClient()
@@ -18,9 +18,10 @@ struct HifzworldAPIClient: Sendable {
     func get<T: Decodable>(
         _ path: String,
         query: [URLQueryItem] = [],
-        authorized: Bool = true
+        authorized: Bool = true,
+        timeout: TimeInterval = 60
     ) async throws -> T {
-        try await request(path: path, method: "GET", query: query, body: nil, authorized: authorized)
+        try await request(path: path, method: "GET", query: query, body: nil, authorized: authorized, timeout: timeout)
     }
 
     func post<T: Decodable, B: Encodable>(_ path: String, body: B, authorized: Bool = true) async throws -> T {
@@ -64,11 +65,13 @@ struct HifzworldAPIClient: Sendable {
         method: String,
         query: [URLQueryItem] = [],
         body: Data?,
-        authorized: Bool
+        authorized: Bool,
+        timeout: TimeInterval = 60
     ) async throws -> T {
         let url = try makeURL(path: path, query: query)
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 

@@ -22,6 +22,9 @@ struct BundleDetailView: View {
     @State private var rowFrames: [Int: CGRect] = [:]
     @State private var isDragging = false
     @State private var showShareSheet = false
+    @State private var showEditTitleSheet = false
+    @State private var editTitle = ""
+    @State private var editDescription = ""
     @State private var actionError: String?
 
     private var bundle: MushafBundle? {
@@ -55,6 +58,13 @@ struct BundleDetailView: View {
                         ShareBundleSheet(bundleTitle: bundle.title) {
                             try await createInviteLink(for: bundle)
                         }
+                    }
+                    .sheet(isPresented: $showEditTitleSheet) {
+                        EditBundleSheet(
+                            title: $editTitle,
+                            description: $editDescription,
+                            onSave: { saveEditedTitle() }
+                        )
                     }
                     .alert("Error", isPresented: Binding(
                         get: { actionError != nil },
@@ -110,6 +120,13 @@ struct BundleDetailView: View {
                         ShareBundleSheet(bundleTitle: bundle.title) {
                             try await createInviteLink(for: bundle)
                         }
+                    }
+                    .sheet(isPresented: $showEditTitleSheet) {
+                        EditBundleSheet(
+                            title: $editTitle,
+                            description: $editDescription,
+                            onSave: { saveEditedTitle() }
+                        )
                     }
                     .alert("Error", isPresented: Binding(
                         get: { actionError != nil },
@@ -526,6 +543,15 @@ struct BundleDetailView: View {
 
     @ToolbarContentBuilder
     private func bundleToolbar(_ bundle: MushafBundle) -> some ToolbarContent {
+        if !bundle.isShared {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit Title") {
+                    editTitle = bundle.title
+                    editDescription = bundle.description
+                    showEditTitleSheet = true
+                }
+            }
+        }
         if auth.isSignedIn, !bundle.isShared {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -552,6 +578,15 @@ struct BundleDetailView: View {
                 }
             }
         }
+    }
+
+    private func saveEditedTitle() {
+        bundleStore.updateBundle(
+            id: bundleID,
+            title: editTitle,
+            description: editDescription
+        )
+        Task { await pushBundleIfNeeded() }
     }
 
     private func createInviteLink(for bundle: MushafBundle) async throws -> URL {
@@ -584,7 +619,8 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .reciter,
-                partnerName: session.listener?.displayName ?? "Listener"
+                partnerName: session.listener?.displayName ?? "Listener",
+                reciterID: session.reciterID
             )
             let startPage = session.currentPage ?? bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)
@@ -603,7 +639,8 @@ struct BundleDetailView: View {
                 sessionID: session.id,
                 bundleServerID: serverID,
                 role: .listener,
-                partnerName: session.reciter?.displayName ?? "Reciter"
+                partnerName: session.reciter?.displayName ?? "Reciter",
+                reciterID: session.reciterID
             )
             let startPage = session.currentPage ?? bundle.pageNumbers.first ?? 1
             reciteVM.enterReviewSession(context, bundle: bundle, startingPage: startPage)

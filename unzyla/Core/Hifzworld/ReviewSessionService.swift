@@ -47,7 +47,9 @@ struct ReviewSessionService {
         pageNumber: Int,
         mushafID: Int,
         markType: MistakeMarkType,
-        note: String?
+        note: String?,
+        lineNumber: Int? = nil,
+        wordPosition: Int? = nil
     ) async throws -> SessionMarkDTO {
         let body = CreateMarkBody(
             wordID: wordID,
@@ -55,7 +57,10 @@ struct ReviewSessionService {
             pageNumber: pageNumber,
             mushafID: mushafID,
             markType: markType.rawValue,
-            note: note
+            note: note,
+            lineNumber: lineNumber,
+            wordPosition: wordPosition,
+            markedAt: Date()
         )
         return try await api.post(
             "/api/review_sessions/\(sessionID.uuidString.lowercased())/marks",
@@ -63,8 +68,19 @@ struct ReviewSessionService {
         )
     }
 
-    func deleteMark(id: UUID) async throws {
-        try await api.delete("/api/session_marks/\(id.uuidString.lowercased())")
+    func unmarkMark(id: UUID, at date: Date = Date()) async throws {
+        do {
+            let _: SessionMarkDTO = try await api.patch(
+                "/api/session_marks/\(id.uuidString.lowercased())",
+                body: UnmarkSessionMarkBody(unmarkedAt: date)
+            )
+        } catch {
+            if case APIError.httpStatus(let code, _) = error, code == 404 || code == 405 || code == 422 {
+                try await api.delete("/api/session_marks/\(id.uuidString.lowercased())")
+                return
+            }
+            throw error
+        }
     }
 
     func fetchFeedback() async throws -> [FeedbackSessionDTO] {
@@ -109,6 +125,9 @@ private struct CreateMarkBody: Encodable {
     let mushafID: Int
     let markType: String
     let note: String?
+    let lineNumber: Int?
+    let wordPosition: Int?
+    let markedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case note
@@ -117,5 +136,29 @@ private struct CreateMarkBody: Encodable {
         case pageNumber = "page_number"
         case mushafID = "mushaf_id"
         case markType = "mark_type"
+        case lineNumber = "line_number"
+        case wordPosition = "word_position"
+        case markedAt = "marked_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(wordID, forKey: .wordID)
+        try container.encode(verseKey, forKey: .verseKey)
+        try container.encode(pageNumber, forKey: .pageNumber)
+        try container.encode(mushafID, forKey: .mushafID)
+        try container.encode(markType, forKey: .markType)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(lineNumber, forKey: .lineNumber)
+        try container.encodeIfPresent(wordPosition, forKey: .wordPosition)
+        try container.encodeIfPresent(markedAt, forKey: .markedAt)
+    }
+}
+
+private struct UnmarkSessionMarkBody: Encodable {
+    let unmarkedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case unmarkedAt = "unmarked_at"
     }
 }

@@ -14,9 +14,30 @@ enum APIError: LocalizedError {
             if let message, !message.isEmpty { return message }
             return "HTTP error \(code)"
         case .decoding(let error):
-            return "Decoding failed: \(error.localizedDescription)"
+            #if DEBUG
+            return "Couldn't read server response (\(error.localizedDescription))"
+            #else
+            return "Couldn't read server response"
+            #endif
         case .network(let error):
             return error.localizedDescription
         }
+    }
+}
+
+extension APIError {
+    /// Prefer API / decode messages over opaque system copy for auth UI.
+    static func userFacingMessage(for error: Error) -> String {
+        if let apiError = error as? APIError {
+            return apiError.errorDescription ?? "Something went wrong"
+        }
+        if error is DecodingError {
+            return APIError.decoding(error).errorDescription ?? "Couldn't read server response"
+        }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            return error.localizedDescription
+        }
+        return error.localizedDescription
     }
 }
