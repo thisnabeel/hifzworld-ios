@@ -10,10 +10,26 @@ nonisolated struct TajScanTile: Decodable, Sendable {
     let ids: [Int]
     /// Surah number when this tile is a surah header box (title + bismillah).
     let surah: Int?
+    /// When the scan prints a word across a page break (the two editions break pages a word apart),
+    /// the word's own digital page and the word itself, so taps land on the right page.
+    let page: Int?
+    let words: [TajScanWord]?
     let x: Double
     let y: Double
     let width: Double
     let height: Double
+}
+
+/// A word carried by a tile whose word lives on a neighbouring digital page.
+nonisolated struct TajScanWord: Decodable, Sendable {
+    let id: Int
+    let position: Int
+    let content: String
+    let ayah: String?
+
+    var mushafWord: MushafWord {
+        MushafWord(id: id, position: position, content: content, ayah: ayah, layout: nil)
+    }
 }
 
 /// Where the mushaf frame sits inside a page image, in 0…1 image coordinates.
@@ -97,10 +113,22 @@ final class TajScanStore {
         } ?? page
     }
 
-    /// Saved layouts from before surah header tiles existed carry only word tiles; keep the bundled headers.
+    /// Saved layouts store positions and word IDs only: take a spilled word's page + text from the bundled
+    /// tile with the same word, and keep the bundled surah headers if the saved layout predates them.
     private func merged(_ saved: [TajScanTile], bundled: [TajScanTile]) -> [TajScanTile] {
-        guard !saved.contains(where: { $0.surah != nil }) else { return saved }
-        return saved + bundled.filter { $0.surah != nil }
+        let spilled = Dictionary(
+            bundled.compactMap { tile in tile.page != nil ? tile.ids.first.map { ($0, tile) } : nil },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var tiles = saved.map { tile -> TajScanTile in
+            guard tile.page == nil, let id = tile.ids.first, let source = spilled[id] else { return tile }
+            return TajScanTile(ids: tile.ids, surah: tile.surah, page: source.page, words: source.words,
+                               x: tile.x, y: tile.y, width: tile.width, height: tile.height)
+        }
+        if !tiles.contains(where: { $0.surah != nil }) {
+            tiles += bundled.filter { $0.surah != nil }
+        }
+        return tiles
     }
 
     /// Fetch the editor-saved layout for a page once per launch; 404 means keep the bundled tiles.

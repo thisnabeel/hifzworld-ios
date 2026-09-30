@@ -65,6 +65,8 @@ struct PageView: View {
     /// Surah whose header (title + bismillah) is briefly highlighted after a surah jump.
     var highlightedSurahHeader: Int? = nil
     let onWordTap: (MushafWord) -> Void
+    /// Word tap for a word that belongs to another page (scan pages print a few words across page breaks).
+    var onWordTapOnPage: ((MushafWord, Int) -> Void)? = nil
     var onActiveWordFrameChange: ((CGRect?) -> Void)?
 
     private var lineMetas: [PageLineMeta] {
@@ -169,7 +171,8 @@ struct PageView: View {
             sessionMarkColors: sessionMarkColors,
             verseSearchHighlightWordIDs: verseSearchHighlightWordIDs,
             highlightedSurah: highlightedSurahHeader,
-            onWordTap: onWordTap
+            onWordTap: onWordTap,
+            onWordTapOnPage: onWordTapOnPage
         )
         .offset(y: -contentPushOffset)
         .animation(.easeInOut(duration: 0.22), value: contentPushOffset)

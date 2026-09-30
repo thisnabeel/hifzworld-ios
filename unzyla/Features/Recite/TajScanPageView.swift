@@ -18,6 +18,8 @@ struct TajScanPageView: View {
     let verseSearchHighlightWordIDs: Set<Int>
     var highlightedSurah: Int? = nil
     let onWordTap: (MushafWord) -> Void
+    /// Taps on a word the scan prints across a page break: the word and its own digital page.
+    var onWordTapOnPage: ((MushafWord, Int) -> Void)?
 
     private static let highlightYellow = Color(red: 1, green: 0.9, blue: 0.2)
     private static let verseSearchBlue = Color(red: 0.4, green: 0.68, blue: 0.98)
@@ -142,6 +144,10 @@ struct TajScanPageView: View {
 
     private func handleTap(at point: CGPoint, size: CGSize) {
         guard let tile = scan.tiles.first(where: { rect(for: $0, size: size).contains(point) }) else { return }
+        if let otherPage = tile.page, let word = tile.words?.first?.mushafWord {
+            if let onWordTapOnPage { onWordTapOnPage(word, otherPage) } else { onWordTap(word) }
+            return
+        }
         let words = wordsByID
         guard let word = tile.ids.lazy.compactMap({ words[$0] }).first else { return }
         onWordTap(word)

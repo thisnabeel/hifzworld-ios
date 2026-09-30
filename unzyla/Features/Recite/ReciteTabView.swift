@@ -981,6 +981,7 @@ struct ReciteTabView: View {
                 verseSearchHighlightWordIDs: viewModel.verseSearchHighlightWordIDs(for: pageNumber),
                 highlightedSurahHeader: viewModel.highlightedSurahHeader(for: pageNumber),
                 onWordTap: { word in Task { await viewModel.handleWordTap(word, pageNumber: pageNumber) } },
+                onWordTapOnPage: { word, wordPage in Task { await viewModel.handleWordTap(word, pageNumber: wordPage) } },
                 onActiveWordFrameChange: { frame in
                     if pageNumber == viewModel.currentPage || pageNumber == viewModel.activeSpread.leftPage {
                         activeWordScreenFrame = frame
