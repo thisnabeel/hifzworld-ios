@@ -40,6 +40,12 @@ struct VerseSearchHighlight: Equatable, Hashable {
     let verseKey: String
 }
 
+/// A surah header briefly lit up after jumping to that surah's start.
+struct SurahHeaderHighlight: Equatable, Hashable {
+    let page: Int
+    let surah: Int
+}
+
 @MainActor
 @Observable
 final class ReciteViewModel {
@@ -84,6 +90,7 @@ final class ReciteViewModel {
     var verseSearchHighlight: VerseSearchHighlight?
     /// Bumped when highlight should re-apply (e.g. page ayah data arrived after navigate).
     var verseSearchHighlightEpoch = 0
+    var surahHeaderHighlight: SurahHeaderHighlight?
     var traversalIndex = 0
 
     var isPaintMode = false
@@ -281,6 +288,7 @@ final class ReciteViewModel {
     private var pageLoadTasks: [Int: Task<Void, Never>] = [:]
     @ObservationIgnored private var verseTranslationTask: Task<Void, Never>?
     @ObservationIgnored private var verseSearchHighlightClearTask: Task<Void, Never>?
+    @ObservationIgnored private var surahHeaderHighlightClearTask: Task<Void, Never>?
     @ObservationIgnored private var verseTranslationPrefetchTasks: [Int: Task<Void, Never>] = [:]
     @ObservationIgnored private var verseTranslationCache: [String: String] = [:]
 
@@ -860,6 +868,27 @@ final class ReciteViewModel {
             }
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    /// Jump to a surah's first page and briefly highlight its header (title + bismillah).
+    func goToSurah(page: Int, surah: Int) {
+        let targetPage = min(max(page, 1), totalPages)
+        surahHeaderHighlightClearTask?.cancel()
+        surahHeaderHighlight = SurahHeaderHighlight(page: targetPage, surah: surah)
+        goToPage(targetPage, force: true)
+        surahHeaderHighlightClearTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            if surahHeaderHighlight?.page == targetPage, surahHeaderHighlight?.surah == surah {
+                surahHeaderHighlight = nil
+            }
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func highlightedSurahHeader(for pageNumber: Int) -> Int? {
+        guard let highlight = surahHeaderHighlight, highlight.page == pageNumber else { return nil }
+        return highlight.surah
     }
 
     /// Network re-fetch used when cached page lacks ayah tags needed for verse highlight.

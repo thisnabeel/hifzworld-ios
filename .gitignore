@@ -4,3 +4,6 @@ unzyla-api/
 xcuserdata/
 DerivedData/
 .DS_Store
+
+# Taj scan developer preview: scanned pages are not ours to distribute
+unzyla/DevOnly/

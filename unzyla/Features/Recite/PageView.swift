@@ -62,6 +62,8 @@ struct PageView: View {
     var pageHeader: MushafPageHeaderInfo? = nil
     var allowsRangeHighlight = false
     var verseSearchHighlightWordIDs: Set<Int> = []
+    /// Surah whose header (title + bismillah) is briefly highlighted after a surah jump.
+    var highlightedSurahHeader: Int? = nil
     let onWordTap: (MushafWord) -> Void
     var onActiveWordFrameChange: ((CGRect?) -> Void)?
 
@@ -84,6 +86,19 @@ struct PageView: View {
 
             return PageLineMeta(id: "\(page.position)-\(line.id)", line: line, suppress: suppress)
         }
+    }
+
+    private static let surahHighlightColor = Color(red: 0.4, green: 0.68, blue: 0.98).opacity(0.3)
+
+    /// The highlighted surah's title line, or the bismillah line right after it.
+    private func isHighlightedHeaderLine(index: Int) -> Bool {
+        guard let surah = highlightedSurahHeader else { return false }
+        let metas = lineMetas
+        guard metas.indices.contains(index) else { return false }
+        let pos = metas[index].line.surahHeaderPosition ?? 0
+        if pos == surah { return true }
+        if pos == -1, index > 0 { return metas[index - 1].line.surahHeaderPosition == surah }
+        return false
     }
 
     private var juzHighlightIndex: Int {
@@ -130,6 +145,38 @@ struct PageView: View {
     }
 
     var body: some View {
+        if let scan = TajScanStore.shared.page(page.position, mushafID: mushafID) {
+            scanBody(scan)
+        } else {
+            renderedBody
+        }
+    }
+
+    /// Developer preview: the full scanned Taj mushaf page (its own printed header, border and margins)
+    /// edge to edge, with word tiles instead of rendered lines.
+    private func scanBody(_ scan: TajScanPage) -> some View {
+        TajScanPageView(
+            scan: scan,
+            page: page,
+            isDarkMode: isDarkMode,
+            activeWordID: activeWordID,
+            paintedWords: paintedWords,
+            arePaintedWordsVisible: arePaintedWordsVisible,
+            isPaintInverted: isPaintInverted,
+            sessionMarks: sessionMarks,
+            areSessionMarksVisible: areSessionMarksVisible,
+            isSessionMarksInverted: isSessionMarksInverted,
+            sessionMarkColors: sessionMarkColors,
+            verseSearchHighlightWordIDs: verseSearchHighlightWordIDs,
+            highlightedSurah: highlightedSurahHeader,
+            onWordTap: onWordTap
+        )
+        .offset(y: -contentPushOffset)
+        .animation(.easeInOut(duration: 0.22), value: contentPushOffset)
+        .background(AppTheme.pageBackground(dark: isDarkMode))
+    }
+
+    private var renderedBody: some View {
         Group {
             if fillsHalfSpread {
                 pageColumn(lineHeight: naturalLineHeight)
@@ -202,6 +249,8 @@ struct PageView: View {
                 lineHeight: lineHeight,
                 isDarkMode: isDarkMode
             )
+            .background(isHighlightedHeaderLine(index: index) ? Self.surahHighlightColor : Color.clear)
+            .animation(.easeInOut(duration: 0.3), value: highlightedSurahHeader)
         } else {
             MushafLineUIKitView(
                 line: meta.line,

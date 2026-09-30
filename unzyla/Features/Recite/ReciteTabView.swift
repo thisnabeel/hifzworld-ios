@@ -222,6 +222,9 @@ struct ReciteTabView: View {
                 onGo: { viewModel.goToPage($0) },
                 onGoToVerse: { page, verseKey in
                     viewModel.goToVerse(page: page, verseKey: verseKey)
+                },
+                onGoToSurah: { page, surah in
+                    viewModel.goToSurah(page: page, surah: surah)
                 }
             )
             .onAppear {
@@ -976,6 +979,7 @@ struct ReciteTabView: View {
                 pageHeader: viewModel.pageHeaderInfo(for: pageNumber),
                 allowsRangeHighlight: viewModel.allowsRangeHighlight,
                 verseSearchHighlightWordIDs: viewModel.verseSearchHighlightWordIDs(for: pageNumber),
+                highlightedSurahHeader: viewModel.highlightedSurahHeader(for: pageNumber),
                 onWordTap: { word in Task { await viewModel.handleWordTap(word, pageNumber: pageNumber) } },
                 onActiveWordFrameChange: { frame in
                     if pageNumber == viewModel.currentPage || pageNumber == viewModel.activeSpread.leftPage {

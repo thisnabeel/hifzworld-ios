@@ -10,6 +10,7 @@ struct QiraatSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedMushafID: Int
+    @Bindable private var tajScan = TajScanStore.shared
 
     init(
         mushafID: Int,
@@ -42,6 +43,15 @@ struct QiraatSettingsSheet: View {
                 }
                 Section("Appearance") {
                     Toggle("Dark mode", isOn: $isDarkMode)
+                }
+                if tajScan.isAvailable && selectedMushafID == MushafID.indoPak.rawValue {
+                    Section {
+                        Toggle("Taj scan pages", isOn: $tajScan.isEnabled)
+                    } header: {
+                        Text("Developer")
+                    } footer: {
+                        Text("Shows the scanned Taj Company mushaf on the \(tajScan.availablePages.count) mapped pages. Debug builds only.")
+                    }
                 }
                 Section("Translation") {
                     Picker("Language", selection: $translationLanguage) {

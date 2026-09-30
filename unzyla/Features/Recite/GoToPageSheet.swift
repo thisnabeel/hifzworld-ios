@@ -8,6 +8,8 @@ struct GoToPageSheet: View {
     let mushafID: Int
     let onGo: (Int) -> Void
     var onGoToVerse: ((Int, String) -> Void)?
+    /// Jump to a surah's start page (page, surah number), highlighting its header.
+    var onGoToSurah: ((Int, Int) -> Void)?
 
     private enum BrowseTab: String, CaseIterable, Identifiable {
         case juz = "Juz"
@@ -518,7 +520,12 @@ struct GoToPageSheet: View {
         let english = number > 0 ? SurahMeta.englishName(number) : ""
 
         return Button {
-            go(to: segment.startPage)
+            if number > 0, let onGoToSurah {
+                onGoToSurah(segment.startPage, number)
+                dismiss()
+            } else {
+                go(to: segment.startPage)
+            }
         } label: {
             HStack(spacing: 14) {
                 Text(number > 0 ? "\(number)" : "—")
