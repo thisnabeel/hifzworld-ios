@@ -11,6 +11,8 @@ struct QiraatSettingsSheet: View {
 
     @State private var selectedMushafID: Int
     @Bindable private var tajScan = TajScanStore.shared
+    /// Picker tag for the scanned Taj mushaf (not a separate data mushaf, see onChange).
+    private static let tajScanTag = -MushafID.indoPak.rawValue
 
     init(
         mushafID: Int,
@@ -26,7 +28,8 @@ struct QiraatSettingsSheet: View {
         self._isTajweedMarkingEnabled = isTajweedMarkingEnabled
         self.onMarkAppearanceChanged = onMarkAppearanceChanged
         self.onMushafChange = onMushafChange
-        self._selectedMushafID = State(initialValue: mushafID)
+        let showsTaj = mushafID == MushafID.indoPak.rawValue && TajScanStore.shared.isEnabled && TajScanStore.shared.isAvailable
+        self._selectedMushafID = State(initialValue: showsTaj ? Self.tajScanTag : mushafID)
     }
 
     var body: some View {
@@ -35,23 +38,21 @@ struct QiraatSettingsSheet: View {
                 Section("Mushaf") {
                     Picker("Layout", selection: $selectedMushafID) {
                         Text("13 Liner IndoPak").tag(MushafID.indoPak.rawValue)
+                        if tajScan.isAvailable {
+                            Text("13 Liner Taj (scanned)").tag(Self.tajScanTag)
+                        }
                         Text("15 Liner Uthmani").tag(MushafID.uthmani.rawValue)
                     }
                     .onChange(of: selectedMushafID) { _, newValue in
-                        onMushafChange(newValue)
+                        // The Taj scan shows the IndoPak words over the printed pages, so it runs on
+                        // the IndoPak mushaf (marks, decks and page numbers carry over).
+                        let isTaj = newValue == Self.tajScanTag
+                        tajScan.isEnabled = isTaj
+                        onMushafChange(isTaj ? MushafID.indoPak.rawValue : newValue)
                     }
                 }
                 Section("Appearance") {
                     Toggle("Dark mode", isOn: $isDarkMode)
-                }
-                if tajScan.isAvailable && selectedMushafID == MushafID.indoPak.rawValue {
-                    Section {
-                        Toggle("Taj scan pages", isOn: $tajScan.isEnabled)
-                    } header: {
-                        Text("Developer")
-                    } footer: {
-                        Text("Shows the scanned Taj Company mushaf on the \(tajScan.availablePages.count) mapped pages. Debug builds only.")
-                    }
                 }
                 Section("Translation") {
                     Picker("Language", selection: $translationLanguage) {
@@ -79,6 +80,7 @@ struct QiraatSettingsSheet: View {
                 }
             }
             .onChange(of: mushafID) { _, newValue in
+                if newValue == MushafID.indoPak.rawValue && tajScan.isEnabled { return }
                 selectedMushafID = newValue
             }
         }
