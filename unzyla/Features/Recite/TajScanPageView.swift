@@ -58,6 +58,7 @@ struct TajScanPageView: View {
         }
         .task(id: page.position) {
             await TajScanStore.shared.loadSavedLayout(for: page.position)
+            await TajScanStore.shared.prefetch(around: page.position)
         }
     }
 

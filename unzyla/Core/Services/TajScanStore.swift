@@ -46,10 +46,19 @@ struct TajScanPage {
     let tiles: [TajScanTile]
 }
 
-/// Developer preview: the scanned Taj Company 13-line mushaf, mapped word by word onto the IndoPak data.
+/// Where the scanned page files live online: `tajscan-<page>.jpg` + `tajscan-<page>.json` per page.
+nonisolated enum TajScanRemote {
+    /// Bump with every re-export of the page files so caches refresh.
+    static let version = "v1"
+    /// Cloudflare R2 bucket `hifzworld-scans`, public dev URL.
+    static let baseURL: URL? = URL(string: "https://pub-dabf8dea9c6a4f26bc94c2a4db97c735.r2.dev/taj13/v1/")
+    static let pageCount = 847
+}
+
+/// The scanned Taj Company 13-line mushaf, mapped word by word onto the IndoPak data.
 ///
-/// Page images and tiles ship only in Debug builds (`tajscan-*` files are excluded from Release and
-/// gitignored — the scans are not ours to distribute).
+/// Pages come from the app bundle when present (Debug builds bundle them from DevOnly/), otherwise they
+/// are downloaded on demand from `TajScanRemote` and cached, with the neighbouring pages prefetched.
 @MainActor
 @Observable
 final class TajScanStore {
@@ -57,8 +66,11 @@ final class TajScanStore {
 
     private static let enabledKey = "tajScanPreviewEnabled"
 
-    /// App page numbers that have a mapped scan in this build.
+    enum PageState { case ready, loading, failed }
+
+    /// App page numbers that have a mapped scan (bundled or downloadable).
     let availablePages: Set<Int>
+    private let bundledPages: Set<Int>
 
     var isEnabled: Bool {
         didSet { UserDefaults.standard.set(isEnabled, forKey: Self.enabledKey) }
@@ -66,10 +78,14 @@ final class TajScanStore {
 
     var isAvailable: Bool { !availablePages.isEmpty }
 
-    /// Hand-corrected tiles saved from the web editor (hifzworld-api), preferred over the bundled ones.
+    /// Hand-corrected tiles saved from the web editor (hifzworld-api), preferred over the shipped ones.
     private var savedTiles: [Int: [TajScanTile]] = [:]
+    /// Pages whose files are on disk / being fetched / failed to fetch (drives re-renders).
+    private var loadedPages: Set<Int> = []
+    private var loadingPages: Set<Int> = []
+    private var failedPages: Set<Int> = []
     @ObservationIgnored private var cache: [Int: TajScanPage] = [:]
-    @ObservationIgnored private var fetchedPages: Set<Int> = []
+    @ObservationIgnored private var fetchedLayouts: Set<Int> = []
     private static let mushafKey = "taj13"
 
     private struct PageFile: Decodable {
@@ -81,27 +97,45 @@ final class TajScanStore {
         let tiles: [TajScanTile]
     }
 
+    private static var cacheDirectory: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("TajScan/\(TajScanRemote.version)", isDirectory: true)
+    }
+
     private init() {
         let jsons = Bundle.main.paths(forResourcesOfType: "json", inDirectory: nil)
-        availablePages = Set(jsons.compactMap { path in
+        bundledPages = Set(jsons.compactMap { path in
             let name = (path as NSString).lastPathComponent
             guard name.hasPrefix("tajscan-") else { return nil }
             return Int(name.dropFirst("tajscan-".count).dropLast(".json".count))
         })
+        let remote: Set<Int> = TajScanRemote.baseURL == nil ? [] : Set(1...TajScanRemote.pageCount)
+        availablePages = bundledPages.union(remote)
         isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
     }
 
-    /// The scan for an IndoPak page, when the preview is on and the page is mapped.
+    /// Whether this IndoPak page should show the scan (it may still be downloading).
+    func showsScan(_ number: Int, mushafID: Int) -> Bool {
+        isEnabled && mushafID == MushafID.indoPak.rawValue && availablePages.contains(number) && !failedPages.contains(number)
+    }
+
+    func state(of number: Int) -> PageState {
+        if failedPages.contains(number) { return .failed }
+        if cache[number] != nil || loadedPages.contains(number) || bundledPages.contains(number) || filesOnDisk(number) { return .ready }
+        return .loading
+    }
+
+    /// The scan for an IndoPak page, when it's on and its files are available locally.
     func page(_ number: Int, mushafID: Int) -> TajScanPage? {
-        guard isEnabled, mushafID == MushafID.indoPak.rawValue, availablePages.contains(number) else { return nil }
+        guard showsScan(number, mushafID: mushafID) else { return nil }
+        _ = loadedPages      // re-render once a download lands
         if let cached = cache[number] {
             if let saved = savedTiles[number] {
                 return TajScanPage(image: cached.image, frame: cached.frame, tiles: merged(saved, bundled: cached.tiles))
             }
             return cached
         }
-        guard let jsonURL = Bundle.main.url(forResource: "tajscan-\(number)", withExtension: "json"),
-              let imageURL = Bundle.main.url(forResource: "tajscan-\(number)", withExtension: "jpg"),
+        guard let (jsonURL, imageURL) = localFiles(number),
               let data = try? Data(contentsOf: jsonURL),
               let file = try? JSONDecoder().decode(PageFile.self, from: data),
               let image = UIImage(contentsOfFile: imageURL.path)
@@ -111,6 +145,57 @@ final class TajScanStore {
         return savedTiles[number].map {
             TajScanPage(image: image, frame: file.frame, tiles: merged($0, bundled: file.words))
         } ?? page
+    }
+
+    /// Make sure a page's files are local, downloading them if needed.
+    func ensure(_ number: Int) async {
+        guard availablePages.contains(number), localFiles(number) == nil, !loadingPages.contains(number),
+              let base = TajScanRemote.baseURL else { return }
+        loadingPages.insert(number)
+        defer { loadingPages.remove(number) }
+        let dir = Self.cacheDirectory
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            for ext in ["json", "jpg"] {
+                let name = "tajscan-\(number).\(ext)"
+                let (data, response) = try await URLSession.shared.data(from: base.appendingPathComponent(name))
+                guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
+                    throw URLError(.badServerResponse)
+                }
+                try data.write(to: dir.appendingPathComponent(name), options: .atomic)
+            }
+            failedPages.remove(number)
+            loadedPages.insert(number)
+        } catch {
+            // offline or missing: show the rendered page for now, try again next launch
+            failedPages.insert(number)
+        }
+    }
+
+    /// Fetch the pages around one being read, so swiping doesn't wait.
+    func prefetch(around number: Int) async {
+        for offset in [1, -1, 2, -2] {
+            let n = number + offset
+            guard n >= 1, n <= TajScanRemote.pageCount else { continue }
+            await ensure(n)
+        }
+    }
+
+    private func filesOnDisk(_ number: Int) -> Bool {
+        let dir = Self.cacheDirectory
+        return FileManager.default.fileExists(atPath: dir.appendingPathComponent("tajscan-\(number).jpg").path)
+            && FileManager.default.fileExists(atPath: dir.appendingPathComponent("tajscan-\(number).json").path)
+    }
+
+    private func localFiles(_ number: Int) -> (URL, URL)? {
+        if bundledPages.contains(number),
+           let json = Bundle.main.url(forResource: "tajscan-\(number)", withExtension: "json"),
+           let jpg = Bundle.main.url(forResource: "tajscan-\(number)", withExtension: "jpg") {
+            return (json, jpg)
+        }
+        guard filesOnDisk(number) else { return nil }
+        let dir = Self.cacheDirectory
+        return (dir.appendingPathComponent("tajscan-\(number).json"), dir.appendingPathComponent("tajscan-\(number).jpg"))
     }
 
     /// Saved layouts store positions and word IDs only: take a spilled word's page + text from the bundled
@@ -133,8 +218,8 @@ final class TajScanStore {
 
     /// Fetch the editor-saved layout for a page once per launch; 404 means keep the bundled tiles.
     func loadSavedLayout(for number: Int) async {
-        guard availablePages.contains(number), !fetchedPages.contains(number) else { return }
-        fetchedPages.insert(number)
+        guard availablePages.contains(number), !fetchedLayouts.contains(number) else { return }
+        fetchedLayouts.insert(number)
         let url = HifzworldAPIConfig.baseURL
             .appendingPathComponent("api/scan_layouts/\(Self.mushafKey)/\(number)")
         guard let (data, response) = try? await URLSession.shared.data(from: url),

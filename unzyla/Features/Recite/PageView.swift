@@ -147,8 +147,15 @@ struct PageView: View {
     }
 
     var body: some View {
-        if let scan = TajScanStore.shared.page(page.position, mushafID: mushafID) {
+        let taj = TajScanStore.shared
+        if let scan = taj.page(page.position, mushafID: mushafID) {
             scanBody(scan)
+        } else if taj.showsScan(page.position, mushafID: mushafID) {
+            // downloading this scanned page; falls back to the rendered page if it can't be fetched
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppTheme.pageBackground(dark: isDarkMode))
+                .task(id: page.position) { await taj.ensure(page.position) }
         } else {
             renderedBody
         }
