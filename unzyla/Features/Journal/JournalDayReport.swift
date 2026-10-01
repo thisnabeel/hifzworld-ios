@@ -112,7 +112,7 @@ enum JournalDayReport {
     }
 
     private static func collapsedPages(_ pages: [Int]) -> String {
-        let sorted = Array(Set(pages)).sorted()
+        let sorted = Array(Set(pages)).sorted().map { PrintedPage.display($0) }
         guard !sorted.isEmpty else { return "" }
         if sorted.count == 1 { return "p. \(sorted[0])" }
         var parts: [String] = []

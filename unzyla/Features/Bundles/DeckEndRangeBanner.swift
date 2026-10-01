@@ -17,7 +17,7 @@ struct DeckEndRangeBanner: View {
                 Text(surahTitle.map { "Deck range · \($0)" } ?? "Deck range")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text("p. \(low)–\(high) · \(pageCount) page\(pageCount == 1 ? "" : "s")")
+                Text("p. \(PrintedPage.display(low))–\(PrintedPage.display(high)) · \(pageCount) page\(pageCount == 1 ? "" : "s")")
                     .font(.subheadline.weight(.semibold))
             }
 

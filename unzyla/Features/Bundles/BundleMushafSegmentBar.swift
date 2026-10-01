@@ -116,7 +116,7 @@ struct BundleMushafSegmentBar: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add page \(accessibilityPage) to deck")
+        .accessibilityLabel("Add page \(PrintedPage.display(accessibilityPage)) to deck")
     }
 
     private func pageChip(
@@ -127,7 +127,7 @@ struct BundleMushafSegmentBar: View {
     ) -> some View {
         let isActive = flatIndex == session.currentIndex
         let showsSurah = isActive || isGroupLead
-        let label = showsSurah ? "\(page) \(surahTitle)" : "\(page)"
+        let label = showsSurah ? "\(PrintedPage.display(page)) \(surahTitle)" : "\(PrintedPage.display(page))"
 
         return Text(label)
             .font(.caption.weight(isActive ? .semibold : .regular))
@@ -147,7 +147,7 @@ struct BundleMushafSegmentBar: View {
                 onRequestDelete?(page)
             }
             .id(flatIndex)
-            .accessibilityLabel(showsSurah ? "Page \(page), \(surahTitle)" : "Page \(page)")
+            .accessibilityLabel(showsSurah ? "Page \(PrintedPage.display(page)), \(surahTitle)" : "Page \(PrintedPage.display(page))")
             .accessibilityHint(allowsEditing ? "Long press to remove from deck" : "")
             .accessibilityAddTraits(isActive ? .isSelected : [])
             .accessibilityAction {

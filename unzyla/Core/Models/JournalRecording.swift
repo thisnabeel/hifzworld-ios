@@ -37,7 +37,7 @@ struct JournalRecording: Identifiable, Codable, Hashable {
     }
 
     var pagesLabel: String {
-        let pages = pageNumbers.sorted()
+        let pages = pageNumbers.sorted().map { PrintedPage.display($0, mushafID: mushafID) }
         guard !pages.isEmpty else { return "No pages" }
         if pages.count == 1 { return "p. \(pages[0])" }
         let collapsed = Self.collapsedRanges(pages)

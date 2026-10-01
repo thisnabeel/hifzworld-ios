@@ -110,7 +110,8 @@ struct GoToPageSheet: View {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return bookmarkedPages }
         return bookmarkedPages.filter { page in
-            if "\(page)".contains(query) || "p. \(page)".localizedCaseInsensitiveContains(query) {
+            let printed = PrintedPage.display(page, mushafID: mushafID)
+            if "\(printed)".contains(query) || "p. \(printed)".localizedCaseInsensitiveContains(query) {
                 return true
             }
             let surahNumber = BundlePageGrouping.resolvedSurahNumber(for: page, overrides: [:])
@@ -229,7 +230,7 @@ struct GoToPageSheet: View {
                         .focused($isPageFieldFocused)
                         .frame(minWidth: 72)
 
-                    Text("of \(totalPages)")
+                    Text("of \(PrintedPage.display(totalPages, mushafID: mushafID))")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(secondaryText)
                 }
@@ -492,7 +493,7 @@ struct GoToPageSheet: View {
                         .environment(\.layoutDirection, .rightToLeft)
                 }
 
-                Text("p. \(page)")
+                Text("p. \(PrintedPage.display(page, mushafID: mushafID))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(tertiaryText)
                     .monospacedDigit()
@@ -550,7 +551,7 @@ struct GoToPageSheet: View {
                     .multilineTextAlignment(.trailing)
                     .environment(\.layoutDirection, .rightToLeft)
 
-                Text("p. \(segment.startPage)")
+                Text("p. \(PrintedPage.display(segment.startPage, mushafID: mushafID))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(tertiaryText)
                     .monospacedDigit()
@@ -765,7 +766,7 @@ struct GoToPageSheet: View {
                         .monospacedDigit()
                     Spacer()
                     if let page = hit.page {
-                        Text("p. \(page)")
+                        Text("p. \(PrintedPage.display(page, mushafID: mushafID))")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(tertiaryText)
                             .monospacedDigit()
@@ -825,13 +826,19 @@ struct GoToPageSheet: View {
             .tracking(0.6)
     }
 
+    /// The typed number is the printed page; convert it to the data page.
+    private var typedPage: Int? {
+        guard let printed = Int(pageField) else { return nil }
+        return PrintedPage.dataPage(fromDisplay: printed, mushafID: mushafID)
+    }
+
     private var canSubmitPage: Bool {
-        guard let page = Int(pageField) else { return false }
+        guard let page = typedPage else { return false }
         return (1...totalPages).contains(page)
     }
 
     private func submitPage() {
-        guard let page = Int(pageField), (1...totalPages).contains(page) else { return }
+        guard let page = typedPage, (1...totalPages).contains(page) else { return }
         go(to: page)
     }
 

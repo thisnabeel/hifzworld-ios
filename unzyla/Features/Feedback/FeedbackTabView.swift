@@ -381,7 +381,7 @@ struct FeedbackTabView: View {
     private func markRow(_ mark: MushafMarkDTO) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(surahTitle(for: mark) ?? "Pg. \(mark.pageNumber)")
+                Text(surahTitle(for: mark) ?? "Pg. \(PrintedPage.display(mark.pageNumber, mushafID: mark.mushafID))")
                     .font(.headline)
                 Spacer()
                 Text(mark.markType.capitalized)
@@ -444,11 +444,11 @@ struct FeedbackTabView: View {
     private func pageReferenceLine(for mark: MushafMarkDTO) -> String {
         if MushafWordVerse.isProvisionalVerseKey(mark.verseKey) {
             if let line = mark.lineNumber, let word = mark.wordPosition {
-                return "Pg. \(mark.pageNumber) · L\(line) · W\(word)"
+                return "Pg. \(PrintedPage.display(mark.pageNumber, mushafID: mark.mushafID)) · L\(line) · W\(word)"
             }
-            return "Pg. \(mark.pageNumber)"
+            return "Pg. \(PrintedPage.display(mark.pageNumber, mushafID: mark.mushafID))"
         }
-        return "Pg. \(mark.pageNumber) · \(mark.displayReference)"
+        return "Pg. \(PrintedPage.display(mark.pageNumber, mushafID: mark.mushafID)) · \(mark.displayReference)"
     }
 
     private func markerLabel(_ mark: MushafMarkDTO) -> String {

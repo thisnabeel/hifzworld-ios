@@ -20,7 +20,7 @@ struct AddPageToBundleSheet: View {
                         } label: {
                             optionRow(
                                 title: "Whole surah",
-                                subtitle: "\(surahTitle ?? surahOffer.title) · p. \(surahOffer.startPage)–\(surahOffer.endPage)",
+                                subtitle: "\(surahTitle ?? surahOffer.title) · p. \(PrintedPage.display(surahOffer.startPage))–\(PrintedPage.display(surahOffer.endPage))",
                                 systemImage: "text.book.closed"
                             )
                         }
@@ -43,7 +43,7 @@ struct AddPageToBundleSheet: View {
                     } label: {
                         optionRow(
                             title: "Just this page",
-                            subtitle: "Page \(currentPage)",
+                            subtitle: "Page \(PrintedPage.display(currentPage))",
                             systemImage: "doc"
                         )
                     }
@@ -93,7 +93,7 @@ struct AddPageToBundleSheet: View {
                         }
                     }
                 } header: {
-                    sectionHeader("Add page \(currentPage) to…")
+                    sectionHeader("Add page \(PrintedPage.display(currentPage)) to…")
                 }
             }
             .tint(.primary)

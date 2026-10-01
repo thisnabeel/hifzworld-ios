@@ -56,8 +56,8 @@ struct TaraweehNightPortion: Identifiable, Hashable {
 
     var pagesLabel: String {
         guard startPage > 0, endPage > 0 else { return "" }
-        if startPage == endPage { return "p. \(startPage)" }
-        return "p. \(startPage)–\(endPage)"
+        if startPage == endPage { return "p. \(PrintedPage.display(startPage))" }
+        return "p. \(PrintedPage.display(startPage))–\(PrintedPage.display(endPage))"
     }
 
     private static func bareJuzPosition(_ label: String) -> String {

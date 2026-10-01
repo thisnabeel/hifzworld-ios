@@ -19,7 +19,7 @@ struct MushafTopBar: View {
     var onToggleBookmark: (() -> Void)?
 
     private var displayedPageLabel: String {
-        pageLabel ?? "\(currentPage)"
+        pageLabel ?? "\(PrintedPage.display(currentPage))"
     }
 
     private var narratorPills: [NarratorChild] {

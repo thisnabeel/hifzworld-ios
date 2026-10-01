@@ -391,7 +391,7 @@ struct ReciteTabView: View {
             },
             onExitCoach: { viewModel.exitCoachMode() },
             onSearch: {
-                goPageField = String(viewModel.currentPage)
+                goPageField = String(PrintedPage.display(viewModel.currentPage, mushafID: viewModel.mushafID))
                 viewModel.isGoToPageOpen = true
             },
             onAddToBundle: {
@@ -537,7 +537,7 @@ struct ReciteTabView: View {
                 }
             } message: {
                 if let page = pagePendingDeleteFromDeck {
-                    Text("Remove page \(page) from \(session.title)?")
+                    Text("Remove page \(PrintedPage.display(page)) from \(session.title)?")
                 }
             }
         }

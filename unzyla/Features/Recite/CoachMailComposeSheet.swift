@@ -58,7 +58,7 @@ struct CoachMailComposeSheet: View {
                     Button {
                         addCurrentPage()
                     } label: {
-                        Label("Add page \(currentPage)", systemImage: "plus.circle.fill")
+                        Label("Add page \(PrintedPage.display(currentPage))", systemImage: "plus.circle.fill")
                     }
                     .disabled(pageNumbers.contains(currentPage))
                 } header: {
@@ -105,7 +105,7 @@ struct CoachMailComposeSheet: View {
 
     private func pageChip(_ page: Int, removable: Bool) -> some View {
         HStack(spacing: 6) {
-            Text("p. \(page)")
+            Text("p. \(PrintedPage.display(page))")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
             if removable {
                 Button {

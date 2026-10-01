@@ -54,9 +54,9 @@ struct MushafMarkDTO: Codable, Identifiable, Hashable {
     var displayReference: String {
         if MushafWordVerse.isProvisionalVerseKey(verseKey) {
             if let lineNumber, let wordPosition {
-                return "p.\(pageNumber) · L\(lineNumber) · W\(wordPosition)"
+                return "p.\(PrintedPage.display(pageNumber, mushafID: mushafID)) · L\(lineNumber) · W\(wordPosition)"
             }
-            return "p.\(pageNumber)"
+            return "p.\(PrintedPage.display(pageNumber, mushafID: mushafID))"
         }
         return verseKey
     }

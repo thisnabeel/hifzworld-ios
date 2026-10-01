@@ -132,7 +132,7 @@ struct InboxView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                 if !message.pageNumbers.isEmpty {
-                    Text(message.pageNumbers.map { "p. \($0)" }.joined(separator: " · "))
+                    Text(message.pageNumbers.map { "p. \(PrintedPage.display($0, mushafID: message.mushafID))" }.joined(separator: " · "))
                         .font(.caption.weight(.medium).monospacedDigit())
                         .foregroundStyle(Color.accentColor)
                 }
@@ -248,7 +248,7 @@ private struct FlexiblePageChipWrap: View {
                         Button {
                             onTap(page)
                         } label: {
-                            Text("p. \(page)")
+                            Text("p. \(PrintedPage.display(page))")
                                 .font(.subheadline.weight(.semibold).monospacedDigit())
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)

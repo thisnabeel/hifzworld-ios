@@ -195,10 +195,10 @@ struct BundleDetailView: View {
 
     private func pageRangeLabel(for pages: [Int]) -> String {
         guard let first = pages.first, let last = pages.last else { return "" }
-        if pages.count == 1 { return "p. \(first)" }
+        if pages.count == 1 { return "p. \(PrintedPage.display(first))" }
         let contiguous = zip(pages, pages.dropFirst()).allSatisfy { $1 == $0 + 1 }
         if contiguous {
-            return "p. \(first)–\(last)"
+            return "p. \(PrintedPage.display(first))–\(PrintedPage.display(last))"
         }
         return "\(pages.count) pages"
     }
@@ -214,7 +214,7 @@ struct BundleDetailView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text("Page \(page)")
+                        Text("Page \(PrintedPage.display(page))")
                             .font(.body.weight(isSelected ? .semibold : .regular))
                             .foregroundStyle(isSource && isDragging ? .secondary : .primary)
 
@@ -346,7 +346,7 @@ struct BundleDetailView: View {
             .animation(.spring(response: 0.28, dampingFraction: 0.68), value: isHighlighted)
             .contentShape(Rectangle())
             .gesture(dragHandleGesture(for: page))
-            .accessibilityLabel("Drag page \(page)")
+            .accessibilityLabel("Drag page \(PrintedPage.display(page))")
             .accessibilityHint("Drag onto another page to add the pages in between")
     }
 
@@ -414,7 +414,7 @@ struct BundleDetailView: View {
                 Spacer()
 
                 VStack(spacing: 2) {
-                    Text("Page \(pages[safe: currentIndex] ?? 0)")
+                    Text("Page \(PrintedPage.display(pages[safe: currentIndex] ?? 0))")
                         .font(.title3.bold())
                     if let page = pages[safe: currentIndex] {
                         Text(BundlePageGrouping.surahTitle(for: page, overrides: surahOverrides))
@@ -487,7 +487,7 @@ struct BundleDetailView: View {
         guard sourceSurah != targetSurah else { return nil }
         let candidates = BundlePageGrouping.groupingCandidates(for: source)
         guard candidates.contains(targetSurah) else { return nil }
-        return "Show page \(source) under \(BundlePageGrouping.englishName(forSurahNumber: targetSurah))."
+        return "Show page \(PrintedPage.display(source)) under \(BundlePageGrouping.englishName(forSurahNumber: targetSurah))."
     }
 
     private func rangeAdditionPreview(from source: Int, to target: Int) -> String? {

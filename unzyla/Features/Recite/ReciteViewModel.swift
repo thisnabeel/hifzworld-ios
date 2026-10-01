@@ -1818,7 +1818,7 @@ final class ReciteViewModel {
         return MushafPageHeaderInfo(
             surahName: resolvedName,
             surahNumber: surahNumber,
-            pageNumber: pageNumber,
+            pageNumber: PrintedPage.display(pageNumber, mushafID: mushafID),
             juzNumber: juzNumber
         )
     }

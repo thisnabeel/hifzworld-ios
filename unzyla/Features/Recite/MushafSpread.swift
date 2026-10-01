@@ -9,9 +9,9 @@ struct MushafSpread: Hashable {
 
     var displayLabel: String {
         if let leftPage {
-            return "\(rightPage)–\(leftPage)"
+            return "\(PrintedPage.display(rightPage))–\(PrintedPage.display(leftPage))"
         }
-        return "\(rightPage)"
+        return "\(PrintedPage.display(rightPage))"
     }
 
     var pages: [Int] {
