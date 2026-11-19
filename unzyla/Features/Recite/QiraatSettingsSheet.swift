@@ -5,6 +5,8 @@ struct QiraatSettingsSheet: View {
     @Binding var isDarkMode: Bool
     @Binding var translationLanguage: TranslationLanguage
     @Binding var isTajweedMarkingEnabled: Bool
+    /// iPad only; nil hides the row.
+    var fitsSpreadToScreen: Binding<Bool>?
     var onMarkAppearanceChanged: (() -> Void)?
     let onMushafChange: (Int) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +21,7 @@ struct QiraatSettingsSheet: View {
         isDarkMode: Binding<Bool>,
         translationLanguage: Binding<TranslationLanguage>,
         isTajweedMarkingEnabled: Binding<Bool>,
+        fitsSpreadToScreen: Binding<Bool>? = nil,
         onMarkAppearanceChanged: (() -> Void)? = nil,
         onMushafChange: @escaping (Int) -> Void
     ) {
@@ -26,6 +29,7 @@ struct QiraatSettingsSheet: View {
         self._isDarkMode = isDarkMode
         self._translationLanguage = translationLanguage
         self._isTajweedMarkingEnabled = isTajweedMarkingEnabled
+        self.fitsSpreadToScreen = fitsSpreadToScreen
         self.onMarkAppearanceChanged = onMarkAppearanceChanged
         self.onMushafChange = onMushafChange
         self._layout = State(initialValue: MushafLayout.current(mushafID: mushafID))
@@ -52,8 +56,17 @@ struct QiraatSettingsSheet: View {
                         scanDownloadRow(scan)
                     }
                 }
-                Section("Appearance") {
+                Section {
                     Toggle("Dark mode", isOn: $isDarkMode)
+                    if let fitsSpreadToScreen {
+                        Toggle("Fit landscape spread to screen", isOn: fitsSpreadToScreen)
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    if fitsSpreadToScreen != nil {
+                        Text("In landscape, show both pages whole without scrolling.")
+                    }
                 }
                 Section("Translation") {
                     Picker("Language", selection: $translationLanguage) {

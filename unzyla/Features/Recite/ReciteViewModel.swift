@@ -63,6 +63,8 @@ final class ReciteViewModel {
     var isDarkMode: Bool
     var translationLanguage: TranslationLanguage
     var isTajweedMarkingEnabled: Bool
+    /// iPad landscape spread sized to the screen (no vertical scroll).
+    var fitsSpreadToScreen: Bool
     var isLoading = true
     var errorMessage: String?
 
@@ -311,6 +313,7 @@ final class ReciteViewModel {
         isDarkMode = prefs.isMushafDarkMode
         translationLanguage = prefs.translationLanguage
         isTajweedMarkingEnabled = prefs.isTajweedMarkingEnabled
+        fitsSpreadToScreen = prefs.fitsSpreadToScreen
         selectedNarratorIDs = prefs.selectedNarratorIDs
         ayahPromptCueCount = prefs.ayahPromptCueCount
         if let saved = prefs.lastPage(forMushaf: mushafID) {
@@ -1256,6 +1259,11 @@ final class ReciteViewModel {
     func toggleDarkMode(_ value: Bool) {
         isDarkMode = value
         prefs.isMushafDarkMode = value
+    }
+
+    func setFitsSpreadToScreen(_ fits: Bool) {
+        fitsSpreadToScreen = fits
+        prefs.fitsSpreadToScreen = fits
     }
 
     func setTajweedMarkingEnabled(_ enabled: Bool) {

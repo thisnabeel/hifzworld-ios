@@ -56,6 +56,9 @@ struct PageView: View {
     var isFireMode = false
     let contentPushOffset: CGFloat
     var fillsHalfSpread = false
+    /// With `fillsHalfSpread`: fit the page to the height it's given (iPad "fit spread") instead of
+    /// taking a height from its width inside the scrolling spread.
+    var fitsSpreadHeight = false
     /// When set in landscape, adds extra padding on the book-spine side of this page.
     var gutterEdge: HorizontalEdge? = nil
     /// IndoPak 13-line header (surah / Arabic page / juz). Nil hides the bar.
@@ -208,7 +211,16 @@ struct PageView: View {
 
     private var renderedBody: some View {
         Group {
-            if fillsHalfSpread {
+            if fillsHalfSpread, fitsSpreadHeight {
+                // Lines share the height; each line still shrinks its font to fit the width.
+                GeometryReader { geo in
+                    let chrome = topPad + bottomPad + headerBlockHeight
+                    let linesHeight = CGFloat(visibleLineCount) * naturalLineHeight
+                    let typeScale = max(0.5, (geo.size.height - chrome) / max(linesHeight, 1))
+                    pageColumn(lineHeight: naturalLineHeight * typeScale, typeScale: typeScale)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                }
+            } else if fillsHalfSpread {
                 pageColumn(lineHeight: naturalLineHeight)
                     .frame(maxWidth: .infinity, alignment: .top)
             } else {

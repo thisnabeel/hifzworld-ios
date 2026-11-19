@@ -14,6 +14,7 @@ final class PreferencesStore {
     private let markTypeOrderKey = "markTypeOrder"
     private let markTypeColorsKey = "markTypeColors"
     private let tajweedMarkingEnabledKey = "isTajweedMarkingEnabled"
+    private let fitsSpreadToScreenKey = "fitsSpreadToScreen"
     private let lastPageKeyPrefix = "lastMushafPage."
 
     private init() {
@@ -108,6 +109,12 @@ final class PreferencesStore {
     var translationLanguage: TranslationLanguage {
         get { TranslationLanguage(rawValue: defaults.string(forKey: translationLanguageKey) ?? "") ?? .english }
         set { defaults.set(newValue.rawValue, forKey: translationLanguageKey) }
+    }
+
+    /// iPad landscape: size the two-page spread to the screen height instead of scrolling it.
+    var fitsSpreadToScreen: Bool {
+        get { defaults.bool(forKey: fitsSpreadToScreenKey) }
+        set { defaults.set(newValue, forKey: fitsSpreadToScreenKey) }
     }
 
     /// When false, marking uses Mistake only and type pills are hidden.

@@ -116,6 +116,7 @@ struct ReciteTabView: View {
         hasher.combine(showsRecordingPlaybackChrome)
         hasher.combine(showingVerseOverlay)
         hasher.combine(showsSpread)
+        hasher.combine(fitsSpreadToScreen)
         return hasher.finalize()
     }
 
@@ -224,6 +225,12 @@ struct ReciteTabView: View {
                     get: { viewModel.isTajweedMarkingEnabled },
                     set: { viewModel.setTajweedMarkingEnabled($0) }
                 ),
+                fitsSpreadToScreen: UIDevice.current.userInterfaceIdiom == .pad
+                    ? Binding(
+                        get: { viewModel.fitsSpreadToScreen },
+                        set: { viewModel.setFitsSpreadToScreen($0) }
+                    )
+                    : nil,
                 onMarkAppearanceChanged: { markAppearanceRevision &+= 1 },
                 onMushafChange: { id in Task { await viewModel.setMushafID(id) } }
             )
@@ -1021,31 +1028,32 @@ struct ReciteTabView: View {
         )
 
         if showsSpread, spread.leftPage != nil {
-            LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode) {
+            spreadContainer {
                 HStack(spacing: 0) {
                     if let leftPage = spread.leftPage {
                         // Even page (screen left): extra padding on the spine (trailing) side.
                         pageContent(leftPage, fillsHalfSpread: true, gutterEdge: .trailing)
-                            .frame(maxWidth: .infinity, alignment: .top)
                             .overlay(alignment: .trailing) {
                                 bookGutterShadow(edge: .trailing)
                             }
+                            // Fitted pages can be narrower than their half: keep them against the spine.
+                            .frame(maxWidth: .infinity, alignment: fitsSpreadToScreen ? .topTrailing : .top)
                     }
                     // Odd page (screen right): extra padding on the spine (leading) side.
                     pageContent(spread.rightPage, fillsHalfSpread: true, gutterEdge: .leading)
-                        .frame(maxWidth: .infinity, alignment: .top)
                         .overlay(alignment: .leading) {
                             bookGutterShadow(edge: .leading)
                         }
+                        .frame(maxWidth: .infinity, alignment: fitsSpreadToScreen ? .topLeading : .top)
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, fitsSpreadToScreen ? 8 : 24)
             }
             .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
         } else if showsSpread {
-            LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode) {
+            spreadContainer {
                 pageContent(spread.rightPage, fillsHalfSpread: true)
                     .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, fitsSpreadToScreen ? 8 : 24)
             }
             .id("spread-scroll-\(identityPage)-\(viewModel.mushafReloadToken)")
         } else {
@@ -1058,6 +1066,24 @@ struct ReciteTabView: View {
                         singlePageSpineShadow(page: spread.rightPage)
                     }
                 }
+        }
+    }
+
+    /// iPad setting: the landscape spread fills the screen height instead of scrolling.
+    private var fitsSpreadToScreen: Bool {
+        viewModel.fitsSpreadToScreen && UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    /// Scrolling spread (pages sized by width) or, with `fitsSpreadToScreen`, a fixed frame
+    /// the pages fit inside.
+    @ViewBuilder
+    private func spreadContainer<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
+        if fitsSpreadToScreen {
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(AppTheme.pageBackground(dark: viewModel.isDarkMode))
+        } else {
+            LandscapeSpreadScrollView(isDarkMode: viewModel.isDarkMode, content: content)
         }
     }
 
@@ -1127,6 +1153,7 @@ struct ReciteTabView: View {
                 isFireMode: viewModel.isFireMode,
                 contentPushOffset: mushafPushOffset,
                 fillsHalfSpread: fillsHalfSpread,
+                fitsSpreadHeight: fillsHalfSpread && fitsSpreadToScreen,
                 gutterEdge: gutterEdge,
                 pageHeader: viewModel.pageHeaderInfo(for: pageNumber),
                 allowsRangeHighlight: viewModel.allowsRangeHighlight,
