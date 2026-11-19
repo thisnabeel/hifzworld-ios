@@ -13,6 +13,9 @@ final class DeckAudioRecorder {
     private(set) var activeDeckID: UUID?
     private(set) var activeDeckTitle: String?
     private(set) var isJournalSession = false
+    /// Recent input levels (0...1, oldest first) for a live waveform.
+    private(set) var levels: [Float] = []
+    static let levelHistoryCount = 48
     var lastError: String?
 
     private var recorder: AVAudioRecorder?
@@ -102,6 +105,7 @@ final class DeckAudioRecorder {
             activeRecordingID = recordingID
             startedAt = Date()
             elapsed = 0
+            levels = []
             isRecording = true
             startTicker()
             return true
@@ -183,6 +187,7 @@ final class DeckAudioRecorder {
             activeDeckTitle = nil
             isJournalSession = false
             elapsed = 0
+            levels = []
         }
 
         guard save, let url, let recordingID else {
@@ -208,7 +213,7 @@ final class DeckAudioRecorder {
 
     private func startTicker() {
         tickTimer?.invalidate()
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        tickTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.handleTick()
             }
@@ -221,6 +226,19 @@ final class DeckAudioRecorder {
             elapsed = Date().timeIntervalSince(startedAt)
         } else {
             elapsed = recorder?.currentTime ?? 0
+        }
+        sampleLevel()
+    }
+
+    private func sampleLevel() {
+        guard let recorder else { return }
+        recorder.updateMeters()
+        // Map roughly -50...0 dBFS onto 0...1; quieter input reads as silence.
+        let power = recorder.averagePower(forChannel: 0)
+        let normalized = max(0, min(1, (power + 50) / 50))
+        levels.append(normalized * normalized)
+        if levels.count > Self.levelHistoryCount {
+            levels.removeFirst(levels.count - Self.levelHistoryCount)
         }
     }
 }

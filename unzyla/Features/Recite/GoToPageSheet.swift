@@ -114,7 +114,7 @@ struct GoToPageSheet: View {
             if "\(printed)".contains(query) || "p. \(printed)".localizedCaseInsensitiveContains(query) {
                 return true
             }
-            let surahNumber = BundlePageGrouping.resolvedSurahNumber(for: page, overrides: [:])
+            let surahNumber = BundlePageGrouping.resolvedSurahNumber(for: page, mushafID: mushafID)
             if let surahNumber {
                 if SurahMeta.englishName(surahNumber).localizedCaseInsensitiveContains(query) {
                     return true
@@ -458,7 +458,7 @@ struct GoToPageSheet: View {
     }
 
     private func bookmarkRow(_ page: Int) -> some View {
-        let surahNumber = BundlePageGrouping.resolvedSurahNumber(for: page, overrides: [:])
+        let surahNumber = BundlePageGrouping.resolvedSurahNumber(for: page, mushafID: mushafID)
         let english = surahNumber.map { SurahMeta.englishName($0) } ?? ""
         let arabic = surahNumber.map { SurahMeta.arabicName($0) } ?? ""
 

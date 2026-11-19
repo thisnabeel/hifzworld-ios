@@ -4,8 +4,11 @@ enum AyahPromptWords {
     /// Word IDs that stay visible at the start of prompt mode: up to `cueCount`
     /// non-marker words after each ayah circle / surah header, and at the start
     /// of each page (e.g. when the previous page ended on a verse circle).
-    /// `cueCount` of 0 means only verse circles/headers stay unblacked.
+    /// `cueCount` of 0 means only verse circles/headers stay unblacked; -1 shows every word.
     static func cueWordIDs(on page: MushafPage, mushafID: Int, cueCount: Int = 2) -> Set<Int> {
+        if cueCount < 0 {
+            return Set(page.lines.flatMap { $0.words.map(\.id) })
+        }
         let cuesPerBreak = min(2, max(0, cueCount))
         let lines = page.lines.sorted { $0.position < $1.position }
         var cues = Set<Int>()

@@ -98,10 +98,10 @@ final class PreferencesStore {
     var ayahPromptCueCount: Int {
         get {
             guard defaults.object(forKey: ayahPromptCueCountKey) != nil else { return 2 }
-            return min(2, max(0, defaults.integer(forKey: ayahPromptCueCountKey)))
+            return min(2, max(-1, defaults.integer(forKey: ayahPromptCueCountKey)))
         }
         set {
-            defaults.set(min(2, max(0, newValue)), forKey: ayahPromptCueCountKey)
+            defaults.set(min(2, max(-1, newValue)), forKey: ayahPromptCueCountKey)
         }
     }
 

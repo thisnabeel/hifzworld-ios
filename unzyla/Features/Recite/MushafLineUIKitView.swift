@@ -20,6 +20,8 @@ struct MushafLineUIKitView: UIViewRepresentable {
     var sessionMarkHeatCounts: [Int: Int] = [:]
     var isFireMode = false
     var verseSearchHighlightWordIDs: Set<Int> = []
+    /// Multiplies the mushaf's base font size and line height (> 1 on iPad so the page fills the screen).
+    var typeScale: CGFloat = 1
     /// When false, page overlay owns taps (paint / marking mode).
     var allowsWordTap = true
     let onWordTap: (MushafWord) -> Void
@@ -55,7 +57,8 @@ struct MushafLineUIKitView: UIViewRepresentable {
             sessionMarkColors: sessionMarkColors,
             sessionMarkHeatCounts: sessionMarkHeatCounts,
             isFireMode: isFireMode,
-            verseSearchHighlightWordIDs: verseSearchHighlightWordIDs
+            verseSearchHighlightWordIDs: verseSearchHighlightWordIDs,
+            typeScale: typeScale
         )
     }
 }
@@ -67,6 +70,7 @@ final class MushafLineUIView: UIView {
     var allowsWordTap = true
 
     private var mushafID: Int = 2
+    private var typeScale: CGFloat = 1
     private var lastFitWidth: CGFloat = 0
     private var words: [MushafWord] = []
     private var currentLine: MushafLine?
@@ -121,6 +125,7 @@ final class MushafLineUIView: UIView {
         addSubview(highlightOverlayContainer)
         addSubview(stackView)
         addSubview(blackoutOverlayContainer)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(wordTapped(_:))))
         NSLayoutConstraint.activate([
             highlightOverlayContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
             highlightOverlayContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -144,16 +149,27 @@ final class MushafLineUIView: UIView {
         words.first { $0.id == id }
     }
 
-    /// Hit-test a word under a point in this view's coordinates (expanded slightly for drag).
+    /// Hit-test the word whose zone contains a point in this view's coordinates.
+    /// Each word owns the full line height and splits inter-word gaps at the midpoint
+    /// (outer words extend to the line edges), matching the blackout blocks.
     func wordAtLocalPoint(_ point: CGPoint) -> MushafWord? {
-        for case let label as UILabel in stackView.arrangedSubviews {
-            let frame = label.convert(label.bounds, to: self).insetBy(dx: -4, dy: -6)
-            guard frame.contains(point), let word = words.first(where: { $0.id == label.tag }) else {
-                continue
+        guard bounds.contains(point) else { return nil }
+        let labels = stackView.arrangedSubviews
+            .compactMap { $0 as? UILabel }
+            .map { (tag: $0.tag, frame: $0.convert($0.bounds, to: self)) }
+            .sorted { $0.frame.midX < $1.frame.midX }
+        guard !labels.isEmpty else { return nil }
+
+        var index = labels.count - 1
+        for i in 0..<(labels.count - 1) {
+            let boundary = (labels[i].frame.maxX + labels[i + 1].frame.minX) / 2
+            if point.x < boundary {
+                index = i
+                break
             }
-            return word
         }
-        return nil
+        let tag = labels[index].tag
+        return words.first { $0.id == tag }
     }
 
     func configure(
@@ -174,9 +190,11 @@ final class MushafLineUIView: UIView {
         sessionMarkColors: [MistakeMarkType: UIColor],
         sessionMarkHeatCounts: [Int: Int],
         isFireMode: Bool,
-        verseSearchHighlightWordIDs: Set<Int>
+        verseSearchHighlightWordIDs: Set<Int>,
+        typeScale: CGFloat = 1
     ) {
         self.mushafID = mushafID
+        self.typeScale = typeScale
         self.isDarkMode = isDarkMode
         self.isJuzFirstLine = isJuzFirstLine
         self.activeWordID = activeWordID
@@ -218,7 +236,7 @@ final class MushafLineUIView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: MushafTypography.lineHeight(mushafID: mushafID))
+        CGSize(width: UIView.noIntrinsicMetric, height: MushafTypography.lineHeight(mushafID: mushafID) * typeScale)
     }
 
     override func didMoveToWindow() {
@@ -227,10 +245,16 @@ final class MushafLineUIView: UIView {
         renderLine(force: true)
     }
 
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer.view === self, gestureRecognizer is UITapGestureRecognizer else {
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+        return allowsWordTap && wordAtLocalPoint(gestureRecognizer.location(in: self)) != nil
+    }
+
     @objc private func wordTapped(_ gesture: UITapGestureRecognizer) {
-        guard allowsWordTap else { return }
-        guard let label = gesture.view as? UILabel,
-              let word = words.first(where: { $0.id == label.tag }) else { return }
+        guard allowsWordTap,
+              let word = wordAtLocalPoint(gesture.location(in: self)) else { return }
         onWordTap?(word)
     }
 
@@ -251,7 +275,7 @@ final class MushafLineUIView: UIView {
         let isSessionMarksInverted = self.isSessionMarksInverted
         let marksInvertActive = areSessionMarksVisible && isSessionMarksInverted && !sessionMarks.isEmpty
 
-        let baseSize = MushafTypography.baseFontSize(mushafID: mushafID)
+        let baseSize = MushafTypography.baseFontSize(mushafID: mushafID) * typeScale
         let fontName = MushafTypography.quranFontName(mushafID: mushafID)
         let textColor: UIColor = isJuzFirstLine
             ? .white
@@ -305,13 +329,11 @@ final class MushafLineUIView: UIView {
                 label.clipsToBounds = true
             }
 
-            label.isUserInteractionEnabled = true
-            label.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(wordTapped(_:))))
             stackView.addArrangedSubview(label)
         }
 
         if mushafID == MushafID.indoPak.rawValue {
-            let lineHeight = MushafTypography.lineHeight(mushafID: mushafID)
+            let lineHeight = MushafTypography.lineHeight(mushafID: mushafID) * typeScale
             layer.sublayers?.filter { $0.name == "lineBorder" }.forEach { $0.removeFromSuperlayer() }
             let border = CALayer()
             border.name = "lineBorder"

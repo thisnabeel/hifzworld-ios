@@ -2,6 +2,8 @@ import Foundation
 
 enum MushafWordVerse {
     private static let ayahMarkerScalar: Unicode.Scalar = "\u{06DF}"
+    /// ARABIC END OF AYAH — the 15-line Uthmani circles ("۝٦": marker + verse number).
+    private static let endOfAyahScalar: Unicode.Scalar = "\u{06DD}"
     private static let waqfScalars: Set<Unicode.Scalar> = [
         "\u{06D6}", "\u{06D7}", "\u{06D8}", "\u{06D9}", "\u{06DA}",
         "\u{06DB}", "\u{06DC}", "\u{06E1}", "\u{06E2}",
@@ -21,7 +23,7 @@ enum MushafWordVerse {
         let content = word.content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return false }
 
-        if content.unicodeScalars.contains(ayahMarkerScalar) {
+        if content.unicodeScalars.contains(where: { $0 == ayahMarkerScalar || $0 == endOfAyahScalar }) {
             return true
         }
 

@@ -431,7 +431,7 @@ struct FeedbackTabView: View {
                 return number
             }
         }
-        return BundlePageGrouping.defaultSurahNumber(for: mark.pageNumber)
+        return BundlePageGrouping.defaultSurahNumber(for: mark.pageNumber, mushafID: mark.mushafID)
     }
 
     private func surahTitle(for mark: MushafMarkDTO) -> String? {

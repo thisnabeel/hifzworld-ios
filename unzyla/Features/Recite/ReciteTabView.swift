@@ -6,6 +6,9 @@ struct ReciteTabView: View {
     @Binding var selectedTab: Int
     let onCreateBundle: () -> Void
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Wider than tall; with a regular width (iPad full screen / large split) this shows the spread.
+    @State private var isLandscapeContainer = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var goPageField = ""
     @State private var activeWordScreenFrame: CGRect?
@@ -19,6 +22,7 @@ struct ReciteTabView: View {
     @State private var showCoachMailSheet = false
     @State private var showInboxSheet = false
     @State private var showGuideSheet = false
+    @State private var quarterReview: JuzQuarterReview?
     @State private var unreadMailCount = 0
     @State private var markAppearanceRevision = 0
     @State private var pagePendingDeleteFromDeck: Int?
@@ -26,12 +30,21 @@ struct ReciteTabView: View {
     @Bindable private var auth = AuthService.shared
     @Bindable private var bookmarkStore = MushafBookmarkStore.shared
 
+    /// iPad (regular width): tabs are drawn inside the Mushaf chrome instead of the system tab bar.
+    private var usesInlineTabSwitcher: Bool {
+        horizontalSizeClass == .regular
+    }
+
+    /// Two-page spread: iPhone landscape (compact height), or iPad landscape with room for two pages.
     private var showsSpread: Bool {
         verticalSizeClass == .compact
+            || (horizontalSizeClass == .regular && isLandscapeContainer)
     }
 
     private var showingVerseOverlay: Bool {
-        !viewModel.isPaintMode && viewModel.selectedVerse != nil
+        // Quarter review taps verse circles only to record the boundary verse.
+        if quarterReview != nil { return false }
+        return !viewModel.isPaintMode && viewModel.selectedVerse != nil
     }
 
     private var hasPaintOnVisiblePages: Bool {
@@ -152,6 +165,11 @@ struct ReciteTabView: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.isDrawerOpen)
         .animation(.easeInOut(duration: 0.25), value: viewModel.isSidebarOpen)
         .animation(.easeInOut(duration: 0.2), value: viewModel.pageHidden)
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width > proxy.size.height
+        } action: { isLandscape in
+            isLandscapeContainer = isLandscape
+        }
         .onAppear {
             viewModel.setPrefersSpreadLayout(showsSpread)
             Task { await refreshUnreadMailCount() }
@@ -185,6 +203,7 @@ struct ReciteTabView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await refreshUnreadMailCount() }
+                ScanStore.all.forEach { $0.resumeDownloadAllIfNeeded() }
             }
         }
         .sheet(isPresented: Binding(
@@ -329,6 +348,7 @@ struct ReciteTabView: View {
     private var reciteMainColumn: some View {
         VStack(spacing: 0) {
             mushafTopBar
+            juzQuarterReviewBar
             reviewBanner
             deckEndRangeBanner
             mushafPagerStack
@@ -340,9 +360,17 @@ struct ReciteTabView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChromeStack
         }
-        .toolbar(showsSpread ? .hidden : .automatic, for: .tabBar)
+        // Recording keeps you on the Mushaf, so the recording bar takes the tab bar's place.
+        // iPad: the tab switcher lives in the Mushaf top bar (portrait) or bottom chrome (spread),
+        // so the floating system tab bar doesn't take its own row above the page.
+        .toolbar(showsSpread || viewModel.isJournalRecording || usesInlineTabSwitcher ? .hidden : .automatic, for: .tabBar)
         .overlay(alignment: .bottom) {
             verseOverlayChrome
+        }
+        .overlay(alignment: .top) {
+            // Container so the toast's insertion/removal transition animates.
+            VStack { journalSavedToast }
+                .animation(.spring(duration: 0.35), value: viewModel.journalSavedToastID)
         }
         .onPreferenceChange(VersePanelTopPreferenceKey.self) { topY in
             versePanelTopY = topY
@@ -355,6 +383,84 @@ struct ReciteTabView: View {
         }
         .onChange(of: viewModel.activeWordID) { _, _ in
             activeWordScreenFrame = nil
+        }
+    }
+
+    @ViewBuilder
+    private var journalSavedToast: some View {
+        if let toastID = viewModel.journalSavedToastID {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recording saved")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Tap to listen in Journal.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            .padding(.top, 64)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onTapGesture {
+                viewModel.journalSavedToastID = nil
+                viewModel.journalFocusRecordingID = toastID
+                selectedTab = 3
+            }
+            .accessibilityAddTraits(.isButton)
+            .task(id: toastID) {
+                try? await Task.sleep(for: .seconds(3))
+                guard viewModel.journalSavedToastID == toastID else { return }
+                withAnimation { viewModel.journalSavedToastID = nil }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private var juzQuarterReviewBar: some View {
+        if let quarterReview {
+            JuzQuarterReviewBar(
+                review: quarterReview,
+                currentPage: viewModel.currentPage,
+                selectedVerseKey: viewModel.selectedVerse?.verseKey,
+                proposedPage: { checkpoint in
+                    quarterReview.proposedPage(
+                        checkpoint,
+                        juzSegments: viewModel.juzSegments,
+                        quarterStarts: viewModel.juzQuarterStartPages
+                    )
+                },
+                onGoToPage: { viewModel.goToPage($0) },
+                onClearVerse: { viewModel.clearSelectedVerseRef() },
+                onExit: {
+                    viewModel.clearSelectedVerseRef()
+                    self.quarterReview = nil
+                }
+            )
+        }
+    }
+
+    /// Opens the scanned Taj 13-line mushaf and walks through the juz quarter checkpoints.
+    private func startJuzQuarterReview() {
+        viewModel.isDrawerOpen = false
+        let review = JuzQuarterReview()
+        ScanStore.taj.isEnabled = true
+        Task {
+            await viewModel.setMushafID(JuzQuarterReview.mushafID)
+            let checkpoint = review.current
+            let page = review.confirmed[checkpoint.key]?.page
+                ?? review.proposedPage(
+                    checkpoint,
+                    juzSegments: viewModel.juzSegments,
+                    quarterStarts: viewModel.juzQuarterStartPages
+                )
+            if let page { viewModel.goToPage(page) }
+            quarterReview = review
         }
     }
 
@@ -403,7 +509,18 @@ struct ReciteTabView: View {
                     bookmarkStore.reload(mushafID: viewModel.mushafID)
                 }
                 bookmarkStore.toggle(page: viewModel.currentPage, mushafID: viewModel.mushafID)
-            }
+            },
+            juz: viewModel.juzSegment(containingPage: viewModel.currentPage),
+            allJuz: viewModel.juzSegments,
+            juzQuarterStartPages: viewModel.juzQuarterStarts(
+                forJuz: viewModel.juzSegment(containingPage: viewModel.currentPage)?.categoryPosition
+            ),
+            mushafID: viewModel.mushafID,
+            onGoToPage: { viewModel.goToPage($0) },
+            // Spread mode has its tabs in the bottom chrome; journal recording keeps you on the Mushaf.
+            selectedTab: usesInlineTabSwitcher && !showsSpread && !viewModel.isJournalRecording
+                ? $selectedTab
+                : nil
         )
     }
 
@@ -604,7 +721,16 @@ struct ReciteTabView: View {
                     .padding(.vertical, 10)
                 }
             }
+            if viewModel.isJournalRecording {
+                JournalRecordingBar(
+                    recorder: DeckAudioRecorder.shared,
+                    isDarkMode: viewModel.isDarkMode,
+                    onStop: { Task { await viewModel.toggleJournalRecording() } }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.spring(duration: 0.35), value: viewModel.isJournalRecording)
         .background(bottomBarBackground)
         .overlay(alignment: .top) {
             if !showsRecordingPlaybackChrome, (!shouldShowBottomChrome || showingVerseOverlay) {
@@ -618,9 +744,8 @@ struct ReciteTabView: View {
     @ViewBuilder
     private var verseOverlayChrome: some View {
         if showingVerseOverlay {
+            // The verse panel draws its own floating card.
             paintToolsChrome(selectedVerse: viewModel.selectedVerse)
-                .background(viewModel.isDarkMode ? AppTheme.mushafDarkBackground : Color.white)
-                .shadow(color: .black.opacity(0.14), radius: 16, y: -6)
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(
@@ -687,6 +812,11 @@ struct ReciteTabView: View {
         )
     }
 
+    private var juzQuarterReviewAction: (() -> Void)? {
+        guard JuzQuarterReview.isAvailable(for: AuthService.shared.currentUser) else { return nil }
+        return { startJuzQuarterReview() }
+    }
+
     @ViewBuilder
     private var drawerOverlay: some View {
         if viewModel.isDrawerOpen {
@@ -723,7 +853,8 @@ struct ReciteTabView: View {
                 onDeleteAccount: {
                     showDeleteAccountConfirm = true
                 },
-                onClose: { viewModel.isDrawerOpen = false }
+                onClose: { viewModel.isDrawerOpen = false },
+                onReviewJuzQuarters: juzQuarterReviewAction
             )
             .frame(width: 280)
             .transition(.move(edge: .leading))
@@ -920,7 +1051,28 @@ struct ReciteTabView: View {
         } else {
             pageContent(spread.rightPage, fillsHalfSpread: false)
                 .padding(.horizontal, 4)
+                .overlay {
+                    // iPad portrait: the page is big enough that the 1pt leaf shift doesn't read,
+                    // so shade the spine edge like one half of the open book.
+                    if horizontalSizeClass == .regular {
+                        singlePageSpineShadow(page: spread.rightPage)
+                    }
+                }
         }
+    }
+
+    /// Spine shade for a page shown alone, matching the landscape spread: odd data pages are the
+    /// right leaf (spine on the screen's left), even data pages the left leaf (spine on the right).
+    /// Pinned left-to-right so the pager's RTL hosting can't mirror the side.
+    private func singlePageSpineShadow(page: Int) -> some View {
+        let spineOnRight = page.isMultiple(of: 2)
+        return HStack(spacing: 0) {
+            if spineOnRight { Spacer(minLength: 0) }
+            bookGutterShadow(edge: spineOnRight ? .trailing : .leading)
+            if !spineOnRight { Spacer(minLength: 0) }
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .allowsHitTesting(false)
     }
 
     /// Soft spine crease between facing pages.
@@ -983,6 +1135,10 @@ struct ReciteTabView: View {
                 onWordTap: { word in Task { await viewModel.handleWordTap(word, pageNumber: pageNumber) } },
                 onWordTapOnPage: { word, wordPage in Task { await viewModel.handleWordTap(word, pageNumber: wordPage) } },
                 onActiveWordFrameChange: { frame in
+                    // Measure once per selection (reset to nil when the word/verse changes). The push
+                    // offset is derived from this frame and moves the page, which moves the frame; taking
+                    // every report would feed back into the offset and rebuild the page endlessly.
+                    guard activeWordScreenFrame == nil, let frame else { return }
                     if pageNumber == viewModel.currentPage || pageNumber == viewModel.activeSpread.leftPage {
                         activeWordScreenFrame = frame
                     }

@@ -70,10 +70,10 @@ struct JournalRecording: Identifiable, Codable, Hashable {
         }
         pages.append(contentsOf: pageNumbers)
         for page in pages {
-            guard let number = BundlePageGrouping.resolvedSurahNumber(for: page, overrides: [:]),
-                  seen.insert(number).inserted
-            else { continue }
-            names.append(BundlePageGrouping.englishName(forSurahNumber: number))
+            for number in BundlePageGrouping.surahNumbers(onPage: page, mushafID: mushafID)
+            where seen.insert(number).inserted {
+                names.append(BundlePageGrouping.englishName(forSurahNumber: number))
+            }
         }
         return names
     }

@@ -36,7 +36,11 @@ struct BundleDetailView: View {
     }
 
     private var pageGroups: [BundlePageGroup] {
-        BundlePageGrouping.groups(for: pages, surahOverrides: bundle?.pageSurahOverrides ?? [:])
+        BundlePageGrouping.groups(for: pages, mushafID: mushafID, surahOverrides: bundle?.pageSurahOverrides ?? [:])
+    }
+
+    private var mushafID: Int {
+        bundle?.mushafID ?? MushafID.uthmani.rawValue
     }
 
     private var surahOverrides: [Int: Int] {
@@ -195,10 +199,10 @@ struct BundleDetailView: View {
 
     private func pageRangeLabel(for pages: [Int]) -> String {
         guard let first = pages.first, let last = pages.last else { return "" }
-        if pages.count == 1 { return "p. \(PrintedPage.display(first))" }
+        if pages.count == 1 { return "p. \(PrintedPage.display(first, mushafID: mushafID))" }
         let contiguous = zip(pages, pages.dropFirst()).allSatisfy { $1 == $0 + 1 }
         if contiguous {
-            return "p. \(PrintedPage.display(first))–\(PrintedPage.display(last))"
+            return "p. \(PrintedPage.display(first, mushafID: mushafID))–\(PrintedPage.display(last, mushafID: mushafID))"
         }
         return "\(pages.count) pages"
     }
@@ -214,7 +218,7 @@ struct BundleDetailView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text("Page \(PrintedPage.display(page))")
+                        Text("Page \(PrintedPage.display(page, mushafID: mushafID))")
                             .font(.body.weight(isSelected ? .semibold : .regular))
                             .foregroundStyle(isSource && isDragging ? .secondary : .primary)
 
@@ -269,8 +273,8 @@ struct BundleDetailView: View {
                     currentIndex = flatIndex
                     onOpenInMushaf(bundleID, page)
                 }
-                ForEach(BundlePageGrouping.groupingCandidates(for: page), id: \.self) { surahNumber in
-                    let isCurrent = BundlePageGrouping.resolvedSurahNumber(for: page, overrides: surahOverrides) == surahNumber
+                ForEach(BundlePageGrouping.groupingCandidates(for: page, mushafID: mushafID), id: \.self) { surahNumber in
+                    let isCurrent = BundlePageGrouping.resolvedSurahNumber(for: page, mushafID: mushafID, overrides: surahOverrides) == surahNumber
                     Button {
                         bundleStore.setPageSurahOverride(surahNumber, for: page, in: bundleID)
                     } label: {
@@ -346,7 +350,7 @@ struct BundleDetailView: View {
             .animation(.spring(response: 0.28, dampingFraction: 0.68), value: isHighlighted)
             .contentShape(Rectangle())
             .gesture(dragHandleGesture(for: page))
-            .accessibilityLabel("Drag page \(PrintedPage.display(page))")
+            .accessibilityLabel("Drag page \(PrintedPage.display(page, mushafID: mushafID))")
             .accessibilityHint("Drag onto another page to add the pages in between")
     }
 
@@ -417,7 +421,7 @@ struct BundleDetailView: View {
                     Text("Page \(PrintedPage.display(pages[safe: currentIndex] ?? 0))")
                         .font(.title3.bold())
                     if let page = pages[safe: currentIndex] {
-                        Text(BundlePageGrouping.surahTitle(for: page, overrides: surahOverrides))
+                        Text(BundlePageGrouping.surahTitle(for: page, mushafID: mushafID, overrides: surahOverrides))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -469,25 +473,25 @@ struct BundleDetailView: View {
     }
 
     private func surahMovePreview(from source: Int, to target: Int) -> String? {
-        guard let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, overrides: surahOverrides) else {
+        guard let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, mushafID: mushafID, overrides: surahOverrides) else {
             return nil
         }
-        let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, overrides: surahOverrides)
+        let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, mushafID: mushafID, overrides: surahOverrides)
         guard sourceSurah != targetSurah else { return nil }
-        let candidates = BundlePageGrouping.groupingCandidates(for: source)
+        let candidates = BundlePageGrouping.groupingCandidates(for: source, mushafID: mushafID)
         guard candidates.contains(targetSurah) else { return nil }
         return "→ \(BundlePageGrouping.englishName(forSurahNumber: targetSurah))"
     }
 
     private func surahMoveDetail(from source: Int, to target: Int) -> String? {
-        guard let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, overrides: surahOverrides) else {
+        guard let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, mushafID: mushafID, overrides: surahOverrides) else {
             return nil
         }
-        let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, overrides: surahOverrides)
+        let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, mushafID: mushafID, overrides: surahOverrides)
         guard sourceSurah != targetSurah else { return nil }
-        let candidates = BundlePageGrouping.groupingCandidates(for: source)
+        let candidates = BundlePageGrouping.groupingCandidates(for: source, mushafID: mushafID)
         guard candidates.contains(targetSurah) else { return nil }
-        return "Show page \(PrintedPage.display(source)) under \(BundlePageGrouping.englishName(forSurahNumber: targetSurah))."
+        return "Show page \(PrintedPage.display(source, mushafID: mushafID)) under \(BundlePageGrouping.englishName(forSurahNumber: targetSurah))."
     }
 
     private func rangeAdditionPreview(from source: Int, to target: Int) -> String? {
@@ -515,9 +519,9 @@ struct BundleDetailView: View {
         guard source != target, let bundle else { return }
 
         var didChange = false
-        if let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, overrides: surahOverrides) {
-            let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, overrides: surahOverrides)
-            let candidates = BundlePageGrouping.groupingCandidates(for: source)
+        if let targetSurah = BundlePageGrouping.resolvedSurahNumber(for: target, mushafID: mushafID, overrides: surahOverrides) {
+            let sourceSurah = BundlePageGrouping.resolvedSurahNumber(for: source, mushafID: mushafID, overrides: surahOverrides)
+            let candidates = BundlePageGrouping.groupingCandidates(for: source, mushafID: mushafID)
             if sourceSurah != targetSurah, candidates.contains(targetSurah) {
                 bundleStore.setPageSurahOverride(targetSurah, for: source, in: bundle.id)
                 didChange = true

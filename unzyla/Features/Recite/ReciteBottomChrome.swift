@@ -54,6 +54,8 @@ struct ReciteBottomChrome: View {
     var onGoToPreviousBlockPage: (() -> Void)?
     var onGoToNextBlockPage: (() -> Void)?
 
+    @State private var isShowingHandholdGuide = false
+
     private var toolSize: CGFloat { isCompactLandscape ? 30 : 44 }
     private var barPaddingV: CGFloat { isCompactLandscape ? 6 : 10 }
     private var barPaddingH: CGFloat { isCompactLandscape ? 12 : 16 }
@@ -129,11 +131,17 @@ struct ReciteBottomChrome: View {
     }
 
     var body: some View {
+        if !isAyahPromptMode, !isPaintMode, let selectedVerse {
+            verseRefPanel(detail: selectedVerse)
+        } else {
+            toolbarBody
+        }
+    }
+
+    private var toolbarBody: some View {
         Group {
             if isAyahPromptMode {
                 ayahPromptToolbar
-            } else if !isPaintMode, let selectedVerse {
-                verseRefPanel(detail: selectedVerse)
             } else if isReviewListener || isCoachMarking {
                 VStack(spacing: 0) {
                     if showsBlockNavRow { blockNavigationRow }
@@ -156,6 +164,7 @@ struct ReciteBottomChrome: View {
 
     private var ayahPromptToolbar: some View {
         HStack(spacing: toolSpacing) {
+            handholdGuideButton
             Spacer(minLength: 0)
             ayahPromptCueCountPicker
             mushafRecordButton
@@ -168,9 +177,38 @@ struct ReciteBottomChrome: View {
         .padding(.vertical, barPaddingV)
     }
 
+    /// Opens the handhold explainer; icon-only in compact landscape or when the bar is tight.
+    private var handholdGuideButton: some View {
+        Button {
+            isShowingHandholdGuide = true
+        } label: {
+            // Falls back to the icon alone when the bar is too narrow for the label.
+            ViewThatFits(in: .horizontal) {
+                if !isCompactLandscape {
+                    HStack(spacing: 5) {
+                        Image(systemName: "questionmark.circle")
+                        Text("What is this?")
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                Image(systemName: "questionmark.circle")
+            }
+            .font(.system(size: isCompactLandscape ? 15 : 14, weight: .medium))
+            .foregroundStyle(idleToolForeground.opacity(0.75))
+            .frame(minHeight: toolSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("What is handhold mode?")
+        .sheet(isPresented: $isShowingHandholdGuide) {
+            HandholdGuideSheet()
+        }
+    }
+
     private var ayahPromptCueCountPicker: some View {
         HStack(spacing: 0) {
-            ForEach(0...2, id: \.self) { count in
+            ForEach(-1...2, id: \.self) { count in
                 Button {
                     onSelectAyahPromptCueCount?(count)
                 } label: {
@@ -189,7 +227,9 @@ struct ReciteBottomChrome: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Show \(count) cue \(count == 1 ? "word" : "words")")
+                .accessibilityLabel(count < 0
+                    ? "Show the whole page"
+                    : "Show \(count) cue \(count == 1 ? "word" : "words")")
             }
         }
         .background(idleToolFill)
@@ -421,14 +461,26 @@ struct ReciteBottomChrome: View {
                 }
             }
         }
-        .padding(.horizontal, isCompactLandscape ? 14 : 16)
-        .padding(.top, isCompactLandscape ? 8 : 10)
-        .padding(.bottom, isCompactLandscape ? 8 : 12)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(hairline)
-                .frame(height: 1 / UIScreen.main.scale)
-        }
+        .padding(.horizontal, isCompactLandscape ? 14 : 18)
+        .padding(.top, isCompactLandscape ? 10 : 14)
+        .padding(.bottom, isCompactLandscape ? 10 : 16)
+        .background(
+            RoundedRectangle(cornerRadius: cardCorner, style: .continuous)
+                .fill(cardBackground)
+                .shadow(color: .black.opacity(isDarkMode ? 0.45 : 0.12), radius: 18, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cardCorner, style: .continuous)
+                .stroke(hairline, lineWidth: 1)
+        )
+        .padding(.horizontal, isCompactLandscape ? 10 : 12)
+        .padding(.bottom, isCompactLandscape ? 6 : 10)
+    }
+
+    private var cardCorner: CGFloat { isCompactLandscape ? 16 : 22 }
+
+    private var cardBackground: Color {
+        isDarkMode ? Color(red: 0.16, green: 0.16, blue: 0.17) : .white
     }
 
     private func toolButton(
@@ -613,6 +665,8 @@ private struct VerseTranslationBlock: View {
     @State private var isExpanded = false
     @State private var fullHeight: CGFloat = 0
     @State private var sixLineHeight: CGFloat = 0
+    @State private var collapsedTextHeight: CGFloat = 0
+    @State private var scrollMetrics = TranslationScrollMetrics()
 
     private let maxLineCount = 6
     private let collapsedLineCount = 2
@@ -653,23 +707,90 @@ private struct VerseTranslationBlock: View {
             .textSelection(.enabled)
     }
 
+    private let scrollSpace = "verseTranslationScroll"
+
+    /// Height of the scroll box: a short preview when minimized, taller when expanded.
+    private var scrollBoxHeight: CGFloat {
+        guard !isExpanded, collapsedTextHeight > 0 else { return maxExpandedHeight }
+        // Vertical padding around the scrolled text, so the preview lines aren't clipped.
+        return min(collapsedTextHeight + 8, maxExpandedHeight)
+    }
+
+    private var scrollProgress: CGFloat {
+        let overflow = scrollMetrics.contentHeight - scrollBoxHeight
+        guard overflow > 0 else { return 0 }
+        return min(max(scrollMetrics.offset / overflow, 0), 1)
+    }
+
+    /// Scroll view with an always-visible scroll bar (the system one fades out) and
+    /// edge fades hinting at how much text is above / below.
+    private var scrollingTranslation: some View {
+        HStack(alignment: .top, spacing: 8) {
+            ScrollView {
+                translationText()
+                    .padding(.vertical, 4)
+                    .background(
+                        GeometryReader { proxy in
+                            let frame = proxy.frame(in: .named(scrollSpace))
+                            Color.clear.preference(
+                                key: TranslationScrollMetricsKey.self,
+                                value: TranslationScrollMetrics(offset: -frame.minY, contentHeight: frame.height)
+                            )
+                        }
+                    )
+            }
+            .coordinateSpace(name: scrollSpace)
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+            .frame(height: scrollBoxHeight)
+            .mask(scrollFadeMask)
+            .onPreferenceChange(TranslationScrollMetricsKey.self) { scrollMetrics = $0 }
+
+            scrollBar
+        }
+        // Keep the bar on the right edge even for right-to-left translations.
+        .environment(\.layoutDirection, .leftToRight)
+    }
+
+    private var scrollFadeMask: some View {
+        let fade = min(18, scrollBoxHeight * 0.15) / scrollBoxHeight
+        let showsTopFade = scrollProgress > 0.01
+        let showsBottomFade = scrollProgress < 0.99
+        return LinearGradient(
+            stops: [
+                .init(color: showsTopFade ? .clear : .black, location: 0),
+                .init(color: .black, location: fade),
+                .init(color: .black, location: 1 - fade),
+                .init(color: showsBottomFade ? .clear : .black, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var scrollBar: some View {
+        let trackHeight = scrollBoxHeight
+        let contentHeight = max(scrollMetrics.contentHeight, trackHeight)
+        let thumbHeight = max(28, trackHeight * trackHeight / contentHeight)
+        return Capsule()
+            .fill(textColor.opacity(isDarkMode ? 0.14 : 0.08))
+            .frame(width: 4, height: trackHeight)
+            .overlay(alignment: .top) {
+                Capsule()
+                    .fill(textColor.opacity(isDarkMode ? 0.5 : 0.35))
+                    .frame(width: 4, height: thumbHeight)
+                    .offset(y: (trackHeight - thumbHeight) * scrollProgress)
+            }
+            .accessibilityHidden(true)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Group {
-                if !exceedsSixLines {
+                if !exceedsSixLines || (isExpanded && fullHeight <= maxExpandedHeight) {
                     translationText()
-                } else if isExpanded {
-                    if fullHeight <= maxExpandedHeight {
-                        translationText()
-                    } else {
-                        ScrollView {
-                            translationText()
-                        }
-                        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
-                        .frame(maxHeight: maxExpandedHeight)
-                    }
                 } else {
-                    translationText(lineLimit: collapsedLineCount)
+                    scrollingTranslation
                 }
             }
             .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
@@ -683,7 +804,7 @@ private struct VerseTranslationBlock: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(isExpanded ? "Show less" : "Read full translation")
+                        Text(isExpanded ? "Minimize" : "Expand")
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 10, weight: .semibold))
                     }
@@ -698,12 +819,26 @@ private struct VerseTranslationBlock: View {
             isExpanded = false
             fullHeight = 0
             sixLineHeight = 0
+            collapsedTextHeight = 0
         }
     }
 
     private var lineMeasurer: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
+                Text(translation)
+                    .font(translationFont)
+                    .lineSpacing(translationLineSpacing)
+                    .lineLimit(collapsedLineCount)
+                    .multilineTextAlignment(textAlignment)
+                    .environment(\.layoutDirection, isRightToLeft ? .rightToLeft : .leftToRight)
+                    .frame(width: geo.size.width, alignment: .leading)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: TranslationCollapsedHeightKey.self, value: proxy.size.height)
+                        }
+                    )
+
                 Text(translation)
                     .font(translationFont)
                     .lineSpacing(translationLineSpacing)
@@ -734,6 +869,9 @@ private struct VerseTranslationBlock: View {
         }
         .frame(height: 0)
         .allowsHitTesting(false)
+        .onPreferenceChange(TranslationCollapsedHeightKey.self) { height in
+            collapsedTextHeight = height
+        }
         .onPreferenceChange(TranslationSixLineHeightKey.self) { height in
             sixLineHeight = height
             if !exceedsSixLines { isExpanded = false }
@@ -742,6 +880,25 @@ private struct VerseTranslationBlock: View {
             fullHeight = height
             if !exceedsSixLines { isExpanded = false }
         }
+    }
+}
+
+private struct TranslationScrollMetrics: Equatable {
+    var offset: CGFloat = 0
+    var contentHeight: CGFloat = 0
+}
+
+private struct TranslationScrollMetricsKey: PreferenceKey {
+    static var defaultValue = TranslationScrollMetrics()
+    static func reduce(value: inout TranslationScrollMetrics, nextValue: () -> TranslationScrollMetrics) {
+        value = nextValue()
+    }
+}
+
+private struct TranslationCollapsedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

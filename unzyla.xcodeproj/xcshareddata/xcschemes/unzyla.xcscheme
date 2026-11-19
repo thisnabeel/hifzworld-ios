@@ -73,5 +73,23 @@
    <ArchiveAction
       buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Fix onnxruntime MinimumOSVersion"
+               scriptText = "# onnxruntime ships an Info.plist claiming iOS 15.1 while its binary targets iOS 17;&#10;# App Store Connect rejects the mismatch (ITMS-90208). Align the archived plist, then re-sign&#10;# the framework and the app that seals it with the identity the archive was signed with.&#10;app=&quot;$ARCHIVE_PATH/Products/Applications/$WRAPPER_NAME&quot;&#10;fw=&quot;$app/Frameworks/onnxruntime.framework&quot;&#10;[ -d &quot;$fw&quot; ] || exit 0&#10;/usr/libexec/PlistBuddy -c &quot;Set :MinimumOSVersion ${IPHONEOS_DEPLOYMENT_TARGET:-17.0}&quot; &quot;$fw/Info.plist&quot;&#10;identity=$(codesign -dvv &quot;$app&quot; 2&gt;&amp;1 | sed -n 's/^Authority=//p' | head -1)&#10;[ -n &quot;$identity&quot; ] || exit 0&#10;codesign --force --sign &quot;$identity&quot; --preserve-metadata=identifier,entitlements,flags --timestamp=none &quot;$fw&quot;&#10;codesign --force --sign &quot;$identity&quot; --preserve-metadata=identifier,entitlements,flags --timestamp=none &quot;$app&quot;&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "5D6C18972FEDB20A00FCAACD"
+                     BuildableName = "unzyla.app"
+                     BlueprintName = "unzyla"
+                     ReferencedContainer = "container:unzyla.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
    </ArchiveAction>
 </Scheme>

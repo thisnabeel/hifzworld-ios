@@ -15,8 +15,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone is used to record your recitation for a deck and to find verses by reciting them.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>aswaat-one.otf</string>
@@ -25,5 +23,14 @@
 		<string>nastaleeq.ttf</string>
 		<string>NotoNastaliqUrdu-Regular.ttf</string>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

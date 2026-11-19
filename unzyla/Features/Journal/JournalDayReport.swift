@@ -56,7 +56,8 @@ enum JournalDayReport {
             parts.append("in \(joinList(surahs))")
         }
 
-        let pages = takes.flatMap(\.pageNumbers)
+        // Printed numbers per take: the same data page reads differently in each mushaf.
+        let pages = takes.flatMap { take in take.pageNumbers.map { PrintedPage.display($0, mushafID: take.mushafID) } }
         let pagesText = collapsedPages(pages)
         if !pagesText.isEmpty {
             parts.append(pagesText)
@@ -100,7 +101,13 @@ enum JournalDayReport {
             }
         }
         for mark in marks {
-            guard let number = BundlePageGrouping.resolvedSurahNumber(for: mark.pageNumber, overrides: [:]) else {
+            // The marked verse names its surah; fall back to the page for provisional keys.
+            let verseSurah = MushafWordVerse.isProvisionalVerseKey(mark.verseKey)
+                ? nil
+                : mark.verseKey.split(separator: ":").first.flatMap { Int($0) }.flatMap { (1...114).contains($0) ? $0 : nil }
+            guard let number = verseSurah
+                ?? BundlePageGrouping.resolvedSurahNumber(for: mark.pageNumber, mushafID: mark.mushafID)
+            else {
                 continue
             }
             let name = BundlePageGrouping.englishName(forSurahNumber: number)
@@ -112,7 +119,7 @@ enum JournalDayReport {
     }
 
     private static func collapsedPages(_ pages: [Int]) -> String {
-        let sorted = Array(Set(pages)).sorted().map { PrintedPage.display($0) }
+        let sorted = Array(Set(pages)).sorted()
         guard !sorted.isEmpty else { return "" }
         if sorted.count == 1 { return "p. \(sorted[0])" }
         var parts: [String] = []

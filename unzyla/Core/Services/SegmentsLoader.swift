@@ -39,6 +39,18 @@ enum SegmentsLoader {
             .sorted { $0.startPage > $1.startPage }
     }
 
+    /// Start pages of the four quarters of each juz, keyed by juz number. Only mushafs with
+    /// printed quarter markers have them (IndoPak 13-line, from the Taj scan's margin labels).
+    static func juzQuarterStartPages(from entries: [SegmentJSONEntry], mushafID: Int) -> [Int: [Int]] {
+        let quarters = entries
+            .filter { $0.fields.category == "juz_quarter" && $0.fields.mushaf == mushafID }
+            .compactMap { entry in entry.fields.categoryPosition.map { ($0, entry.fields.firstPage) } }
+            .sorted { $0.0 < $1.0 }
+        return Dictionary(grouping: quarters) { ($0.0 - 1) / 4 + 1 }
+            .mapValues { $0.map(\.1) }
+            .filter { $0.value.count == 4 }
+    }
+
     static func fromAPI(_ segments: [MushafSegment]) -> [NavigationSegment] {
         segments
             .map {

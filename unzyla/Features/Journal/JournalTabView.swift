@@ -2,6 +2,8 @@ import SwiftUI
 
 struct JournalTabView: View {
     @Bindable var auth: AuthService
+    /// Recording to jump to (e.g. from the "Recording saved" toast); cleared once handled.
+    @Binding var focusRecordingID: UUID?
 
     @State private var selectedDate = Date()
     @State private var entriesByDate: [String: JournalEntryDTO] = [:]
@@ -15,6 +17,7 @@ struct JournalTabView: View {
     @State private var visibleMonth: Date = Date()
     @Bindable private var recordingStore = JournalRecordingStore.shared
     @Bindable private var player = DeckRecordingPlayer.shared
+    @State private var highlightedRecordingID: UUID?
 
     private let calendar = Calendar.current
 
@@ -79,57 +82,78 @@ struct JournalTabView: View {
     }
 
     private var journalContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                JournalActivityCalendar(
-                    selectedDate: $selectedDate,
-                    displayedMonth: $visibleMonth,
-                    activityLevel: activityLevel(for:),
-                    calendar: calendar
-                )
-                .onChange(of: selectedDate) { _, _ in
-                    draft = selectedEntry?.body ?? ""
-                    saveNotice = nil
-                    errorMessage = nil
-                }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    JournalActivityCalendar(
+                        selectedDate: $selectedDate,
+                        displayedMonth: $visibleMonth,
+                        activityLevel: activityLevel(for:),
+                        calendar: calendar
+                    )
+                    .onChange(of: selectedDate) { _, _ in
+                        draft = selectedEntry?.body ?? ""
+                        saveNotice = nil
+                        errorMessage = nil
+                    }
 
-                Text(selectedStart.formatted(date: .long, time: .omitted))
-                    .font(.headline)
+                    Text(selectedStart.formatted(date: .long, time: .omitted))
+                        .font(.headline)
 
-                if isFuture {
-                    Text("You can only write on today’s date.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else if !auth.isSignedIn {
-                    SignInView(auth: auth)
-                        .frame(minHeight: 180)
-                }
+                    if isFuture {
+                        Text("You can only write on today’s date.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else if !auth.isSignedIn {
+                        SignInView(auth: auth)
+                            .frame(minHeight: 180)
+                    }
 
-                daySurahPills
-                dayReport
+                    daySurahPills
+                    dayReport
 
-                if !isFuture, auth.isSignedIn {
-                    if isToday {
-                        todayEditor
-                    } else {
-                        pastEntry
+                    if !isFuture, auth.isSignedIn {
+                        if isToday {
+                            todayEditor
+                        } else {
+                            pastEntry
+                        }
+                    }
+
+                    dayRecordings
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
                     }
                 }
-
-                dayRecordings
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                .padding()
+            }
+            .overlay {
+                if isLoading && entriesByDate.isEmpty {
+                    ProgressView("Loading journal…")
                 }
             }
-            .padding()
-        }
-        .overlay {
-            if isLoading && entriesByDate.isEmpty {
-                ProgressView("Loading journal…")
+            .task(id: focusRecordingID) {
+                await focusRecording(using: proxy)
             }
+        }
+    }
+
+    private func focusRecording(using proxy: ScrollViewProxy) async {
+        guard let id = focusRecordingID else { return }
+        focusRecordingID = nil
+        guard let recording = recordingStore.recordings.first(where: { $0.id == id }) else { return }
+        selectedDate = recording.createdAt
+        visibleMonth = recording.createdAt
+        // Let the selected day's recordings render before scrolling to the row.
+        try? await Task.sleep(for: .milliseconds(150))
+        withAnimation { proxy.scrollTo(id, anchor: .center) }
+        highlightedRecordingID = id
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation(.easeOut(duration: 0.6)) {
+            if highlightedRecordingID == id { highlightedRecordingID = nil }
         }
     }
 
@@ -297,6 +321,12 @@ struct JournalTabView: View {
             .accessibilityLabel("Delete recording")
         }
         .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(AppTheme.accent.opacity(highlightedRecordingID == recording.id ? 0.18 : 0))
+                .padding(.horizontal, -8)
+        )
+        .id(recording.id)
     }
 
     private func recordingSubtext(_ recording: JournalRecording) -> some View {

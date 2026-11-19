@@ -147,24 +147,45 @@ struct PageView: View {
     }
 
     var body: some View {
-        let taj = TajScanStore.shared
-        if let scan = taj.page(page.position, mushafID: mushafID) {
-            scanBody(scan)
-        } else if taj.showsScan(page.position, mushafID: mushafID) {
+        let store = ScanStore.forMushaf(mushafID)
+        if let store, let scan = store.page(page.position, mushafID: mushafID) {
+            scanBody(scan, store: store)
+        } else if let store, store.showsScan(page.position, mushafID: mushafID) {
             // downloading this scanned page; falls back to the rendered page if it can't be fetched
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // in the landscape spread (a vertical scroll view) take a page's height, not none
+            spreadSized(ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity), aspect: 0.62)
                 .background(AppTheme.pageBackground(dark: isDarkMode))
-                .task(id: page.position) { await taj.ensure(page.position) }
+                .task(id: page.position) { await store.ensure(page.position) }
         } else {
             renderedBody
         }
     }
 
-    /// Developer preview: the full scanned Taj mushaf page (its own printed header, border and margins)
-    /// edge to edge, with word tiles instead of rendered lines.
-    private func scanBody(_ scan: TajScanPage) -> some View {
-        TajScanPageView(
+    /// The full scanned mushaf page (its own printed header, border and margins) edge to edge,
+    /// with word tiles instead of rendered lines.
+    private func scanBody(_ scan: ScanPage, store: ScanStore) -> some View {
+        // In the landscape spread the page sits in a vertical scroll view: size it from its width
+        // (half the screen) like the rendered page, and let it scroll.
+        spreadSized(scanPageView(scan, store: store), aspect: scan.image.size.width / max(scan.image.size.height, 1))
+            .offset(y: -contentPushOffset)
+            .animation(.easeInOut(duration: 0.22), value: contentPushOffset)
+            .background(AppTheme.pageBackground(dark: isDarkMode))
+    }
+
+    /// In the landscape spread, a fixed aspect ratio so the view gets a height from its width;
+    /// elsewhere the view as is (it fills the space it's given).
+    @ViewBuilder
+    private func spreadSized(_ content: some View, aspect: CGFloat) -> some View {
+        if fillsHalfSpread {
+            content.aspectRatio(aspect, contentMode: .fit)
+        } else {
+            content
+        }
+    }
+
+    private func scanPageView(_ scan: ScanPage, store: ScanStore) -> some View {
+        ScanPageView(
+            store: store,
             scan: scan,
             page: page,
             isDarkMode: isDarkMode,
@@ -172,6 +193,8 @@ struct PageView: View {
             paintedWords: paintedWords,
             arePaintedWordsVisible: arePaintedWordsVisible,
             isPaintInverted: isPaintInverted,
+            isAyahPromptMode: isAyahPromptMode,
+            ayahPromptVisibleWordIDs: ayahPromptVisibleWordIDs,
             sessionMarks: sessionMarks,
             areSessionMarksVisible: areSessionMarksVisible,
             isSessionMarksInverted: isSessionMarksInverted,
@@ -181,9 +204,6 @@ struct PageView: View {
             onWordTap: onWordTap,
             onWordTapOnPage: onWordTapOnPage
         )
-        .offset(y: -contentPushOffset)
-        .animation(.easeInOut(duration: 0.22), value: contentPushOffset)
-        .background(AppTheme.pageBackground(dark: isDarkMode))
     }
 
     private var renderedBody: some View {
@@ -195,11 +215,16 @@ struct PageView: View {
                 // Scale to the layout height already reduced by top/bottom chrome
                 // (friend strip, review banner, deck segment bar, tools via safeAreaInset).
                 GeometryReader { geo in
+                    let typeScale = Self.typeScale(
+                        for: geo.size,
+                        chromeHeight: topPad + bottomPad + headerBlockHeight,
+                        linesHeight: CGFloat(visibleLineCount) * naturalLineHeight
+                    )
                     let naturalHeight = topPad + bottomPad + headerBlockHeight
-                        + CGFloat(visibleLineCount) * naturalLineHeight
+                        + CGFloat(visibleLineCount) * naturalLineHeight * typeScale
                     let available = max(geo.size.height, 1)
                     let scale = min(1, available / max(naturalHeight, 1))
-                    pageColumn(lineHeight: naturalLineHeight)
+                    pageColumn(lineHeight: naturalLineHeight * typeScale, typeScale: typeScale)
                         .frame(width: geo.size.width, alignment: .top)
                         .scaleEffect(scale, anchor: .top)
                         .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
@@ -212,7 +237,20 @@ struct PageView: View {
         .background(AppTheme.pageBackground(dark: isDarkMode))
     }
 
-    private func pageColumn(lineHeight: CGFloat) -> some View {
+    /// Narrowest column (pt) that keeps the iPhone proportions; wider space grows the type instead.
+    private static let baseColumnWidth: CGFloat = 600
+
+    /// How much to enlarge the type so a single page fills a large screen (iPad).
+    /// 1 whenever the space is no wider than the base column, so iPhone layouts are unchanged.
+    static func typeScale(for size: CGSize, chromeHeight: CGFloat, linesHeight: CGFloat) -> CGFloat {
+        guard size.width > baseColumnWidth, linesHeight > 0 else { return 1 }
+        let byHeight = (size.height - chromeHeight) / linesHeight
+        // leave room for the side padding and border
+        let byWidth = (size.width - 40) / baseColumnWidth
+        return max(1, min(byHeight, byWidth))
+    }
+
+    private func pageColumn(lineHeight: CGFloat, typeScale: CGFloat = 1) -> some View {
         VStack(spacing: 0) {
             if let pageHeader {
                 MushafPageHeaderBar(
@@ -228,7 +266,7 @@ struct PageView: View {
             VStack(spacing: 0) {
                 ForEach(Array(lineMetas.enumerated()), id: \.element.id) { index, meta in
                     if !meta.suppress {
-                        lineView(meta: meta, index: index, lineHeight: lineHeight)
+                        lineView(meta: meta, index: index, lineHeight: lineHeight, typeScale: typeScale)
                     }
                 }
             }
@@ -239,7 +277,7 @@ struct PageView: View {
                 MushafOuterBorder(edge: outerBorderEdge, isDarkMode: isDarkMode)
             }
         }
-        .frame(maxWidth: fillsHalfSpread ? .infinity : 600)
+        .frame(maxWidth: fillsHalfSpread ? .infinity : Self.baseColumnWidth * typeScale)
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(.top, topPad)
         .padding(.bottom, bottomPad)
@@ -248,7 +286,7 @@ struct PageView: View {
     }
 
     @ViewBuilder
-    private func lineView(meta: PageLineMeta, index: Int, lineHeight: CGFloat) -> some View {
+    private func lineView(meta: PageLineMeta, index: Int, lineHeight: CGFloat, typeScale: CGFloat) -> some View {
         let hasRenderableWords = meta.line.words.contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let isGlyphHeader = mushafID == MushafID.indoPak.rawValue && !hasRenderableWords
         let headerPos = meta.line.surahHeaderPosition ?? 0
@@ -281,6 +319,7 @@ struct PageView: View {
                 sessionMarkHeatCounts: sessionMarkHeatCounts,
                 isFireMode: isFireMode,
                 verseSearchHighlightWordIDs: verseSearchHighlightWordIDs,
+                typeScale: typeScale,
                 allowsWordTap: true,
                 onWordTap: onWordTap,
                 onActiveWordFrameChange: onActiveWordFrameChange

@@ -88,7 +88,7 @@ final class BundleStore {
         guard let index = bundles.firstIndex(where: { $0.id == bundleID }) else { return }
         guard bundles[index].pageNumbers.contains(page) else { return }
 
-        let defaultSurah = BundlePageGrouping.defaultSurahNumber(for: page)
+        let defaultSurah = BundlePageGrouping.defaultSurahNumber(for: page, mushafID: bundles[index].mushafID)
         if let surahNumber, surahNumber != defaultSurah {
             bundles[index].pageSurahOverrides[page] = surahNumber
         } else {

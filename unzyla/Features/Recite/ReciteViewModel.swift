@@ -6,12 +6,13 @@ struct BundleMushafSession: Equatable {
     let bundleID: UUID
     let title: String
     let pages: [Int]
+    let mushafID: Int
     var currentIndex: Int
     /// Display grouping overrides (boundary pages that belong with the next/previous surah).
     var pageSurahOverrides: [Int: Int] = [:]
 
     var groups: [BundlePageGroup] {
-        BundlePageGrouping.groups(for: pages, surahOverrides: pageSurahOverrides)
+        BundlePageGrouping.groups(for: pages, mushafID: mushafID, surahOverrides: pageSurahOverrides)
     }
 }
 
@@ -71,6 +72,8 @@ final class ReciteViewModel {
 
     var pages: [Int: MushafPage] = [:]
     var juzSegments: [NavigationSegment] = []
+    /// Juz number → start pages of its four quarters (bundled, IndoPak only).
+    var juzQuarterStartPages: [Int: [Int]] = [:]
     var surahSegments: [NavigationSegment] = []
 
     var isDrawerOpen = false
@@ -111,6 +114,10 @@ final class ReciteViewModel {
     private(set) var isDeckRecordingSession = false
     /// Local Mushaf journal recording (helper stays on; pages in view are stored).
     private(set) var isJournalRecording = false
+    /// ID of the journal take just saved; drives the "saved to Journal" toast.
+    var journalSavedToastID: UUID?
+    /// Journal recording to scroll to and highlight when the Journal tab opens.
+    var journalFocusRecordingID: UUID?
     private var journalRecordingPages: Set<Int> = []
     private var journalRecordingStartPage: Int?
     /// Prior paint canvas stashed while reviewing a saved take's marks.
@@ -407,6 +414,7 @@ final class ReciteViewModel {
     }
 
     func loadSegments() async {
+        juzQuarterStartPages = SegmentsLoader.juzQuarterStartPages(from: bundledSegments, mushafID: mushafID)
         do {
             let juz = try await api.fetchSegments(mushafID: mushafID, category: "juz")
             let surah = try await api.fetchSegments(mushafID: mushafID, category: "surah")
@@ -519,6 +527,7 @@ final class ReciteViewModel {
             bundleID: bundle.id,
             title: bundle.title,
             pages: bundle.pageNumbers,
+            mushafID: bundle.mushafID,
             currentIndex: index,
             pageSurahOverrides: bundle.pageSurahOverrides
         )
@@ -683,6 +692,7 @@ final class ReciteViewModel {
             bundleID: bundle.id,
             title: bundle.title,
             pages: pages,
+            mushafID: bundle.mushafID,
             currentIndex: index,
             pageSurahOverrides: bundle.pageSurahOverrides
         )
@@ -1372,6 +1382,9 @@ final class ReciteViewModel {
         isJournalRecording = false
         journalRecordingPages = []
         journalRecordingStartPage = nil
+        // Recording turns handhold on; turn it back off when the take ends.
+        isAyahPromptMode = false
+        ayahPromptRevealedWordIDs = []
         guard let take = DeckAudioRecorder.shared.stopJournalSession() else { return }
         let recording = JournalRecording(
             id: take.id,
@@ -1384,6 +1397,7 @@ final class ReciteViewModel {
             startedPage: startPage
         )
         JournalRecordingStore.shared.save(recording)
+        journalSavedToastID = recording.id
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
@@ -1440,7 +1454,7 @@ final class ReciteViewModel {
     }
 
     func setAyahPromptCueCount(_ count: Int) {
-        let clamped = min(2, max(0, count))
+        let clamped = min(2, max(-1, count))
         guard clamped != ayahPromptCueCount else { return }
         ayahPromptCueCount = clamped
         prefs.ayahPromptCueCount = clamped
@@ -1795,6 +1809,11 @@ final class ReciteViewModel {
             .filter { pageNumber >= $0.startPage && pageNumber <= $0.endPage }
             .sorted { $0.startPage > $1.startPage }
             .first
+    }
+
+    /// Printed quarter start pages for a juz, when this mushaf marks them.
+    func juzQuarterStarts(forJuz number: Int?) -> [Int]? {
+        number.flatMap { juzQuarterStartPages[$0] }
     }
 
     func juzSegment(containingPage pageNumber: Int) -> NavigationSegment? {

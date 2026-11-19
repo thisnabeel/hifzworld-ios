@@ -376,7 +376,7 @@
     "pk": 232,
     "fields": {
       "first_page": 2,
-      "last_page": 66,
+      "last_page": 67,
       "title": "البقرة",
       "mushaf": 2,
       "category": "surah",
@@ -400,7 +400,7 @@
     "pk": 234,
     "fields": {
       "first_page": 105,
-      "last_page": 145,
+      "last_page": 146,
       "title": "النساء",
       "mushaf": 2,
       "category": "surah",
@@ -519,7 +519,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 244,
     "fields": {
-      "first_page": 355,
+      "first_page": 354,
       "last_page": 363,
       "title": "إبراهيم",
       "mushaf": 2,
@@ -639,7 +639,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 254,
     "fields": {
-      "first_page": 487,
+      "first_page": 486,
       "last_page": 500,
       "title": "النور",
       "mushaf": 2,
@@ -724,7 +724,7 @@
     "pk": 261,
     "fields": {
       "first_page": 570,
-      "last_page": 575,
+      "last_page": 576,
       "title": "لقمان",
       "mushaf": 2,
       "category": "surah",
@@ -916,7 +916,7 @@
     "pk": 277,
     "fields": {
       "first_page": 703,
-      "last_page": 708,
+      "last_page": 709,
       "title": "محمد",
       "mushaf": 2,
       "category": "surah",
@@ -939,7 +939,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 279,
     "fields": {
-      "first_page": 716,
+      "first_page": 715,
       "last_page": 719,
       "title": "الحجرات",
       "mushaf": 2,
@@ -1059,7 +1059,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 289,
     "fields": {
-      "first_page": 761,
+      "first_page": 760,
       "last_page": 765,
       "title": "الحشر",
       "mushaf": 2,
@@ -1071,7 +1071,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 290,
     "fields": {
-      "first_page": 766,
+      "first_page": 765,
       "last_page": 769,
       "title": "الممتحنة",
       "mushaf": 2,
@@ -1143,7 +1143,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 296,
     "fields": {
-      "first_page": 783,
+      "first_page": 782,
       "last_page": 785,
       "title": "التحريم",
       "mushaf": 2,
@@ -1216,7 +1216,7 @@
     "pk": 302,
     "fields": {
       "first_page": 802,
-      "last_page": 804,
+      "last_page": 805,
       "title": "الجن",
       "mushaf": 2,
       "category": "surah",
@@ -1239,7 +1239,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 304,
     "fields": {
-      "first_page": 810,
+      "first_page": 807,
       "last_page": 810,
       "title": "المدثر",
       "mushaf": 2,
@@ -1527,7 +1527,7 @@
     "model": "mushaf_segment.mushafsegment",
     "pk": 328,
     "fields": {
-      "first_page": 840,
+      "first_page": 839,
       "last_page": 840,
       "title": "البينة",
       "mushaf": 2,
@@ -3040,7 +3040,7 @@
     "pk": 454,
     "fields": {
       "first_page": 585,
-      "last_page": 585,
+      "last_page": 586,
       "title": "عبس",
       "mushaf": 3,
       "category": "surah",
@@ -3088,7 +3088,7 @@
     "pk": 458,
     "fields": {
       "first_page": 589,
-      "last_page": 589,
+      "last_page": 590,
       "title": "الإنشقاق",
       "mushaf": 3,
       "category": "surah",
@@ -3136,7 +3136,7 @@
     "pk": 462,
     "fields": {
       "first_page": 592,
-      "last_page": 592,
+      "last_page": 593,
       "title": "الغاشية",
       "mushaf": 3,
       "category": "surah",
@@ -3160,7 +3160,7 @@
     "pk": 464,
     "fields": {
       "first_page": 594,
-      "last_page": 594,
+      "last_page": 595,
       "title": "البلد",
       "mushaf": 3,
       "category": "surah",
@@ -3208,7 +3208,7 @@
     "pk": 468,
     "fields": {
       "first_page": 596,
-      "last_page": 596,
+      "last_page": 597,
       "title": "الشرح",
       "mushaf": 3,
       "category": "surah",
@@ -3232,7 +3232,7 @@
     "pk": 470,
     "fields": {
       "first_page": 597,
-      "last_page": 597,
+      "last_page": 598,
       "title": "العلق",
       "mushaf": 3,
       "category": "surah",
@@ -3453,6 +3453,1446 @@
       "mushaf": 3,
       "category": "surah",
       "category_position": 114
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 489,
+    "fields": {
+      "first_page": 1,
+      "last_page": 8,
+      "title": "Juz 1 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 1
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 490,
+    "fields": {
+      "first_page": 9,
+      "last_page": 14,
+      "title": "Juz 1 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 2
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 491,
+    "fields": {
+      "first_page": 15,
+      "last_page": 20,
+      "title": "Juz 1 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 3
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 492,
+    "fields": {
+      "first_page": 21,
+      "last_page": 27,
+      "title": "Juz 1 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 4
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 493,
+    "fields": {
+      "first_page": 28,
+      "last_page": 34,
+      "title": "Juz 2 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 5
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 494,
+    "fields": {
+      "first_page": 35,
+      "last_page": 40,
+      "title": "Juz 2 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 6
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 495,
+    "fields": {
+      "first_page": 41,
+      "last_page": 48,
+      "title": "Juz 2 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 7
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 496,
+    "fields": {
+      "first_page": 49,
+      "last_page": 55,
+      "title": "Juz 2 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 8
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 497,
+    "fields": {
+      "first_page": 56,
+      "last_page": 61,
+      "title": "Juz 3 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 9
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 498,
+    "fields": {
+      "first_page": 62,
+      "last_page": 69,
+      "title": "Juz 3 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 10
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 499,
+    "fields": {
+      "first_page": 70,
+      "last_page": 76,
+      "title": "Juz 3 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 11
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 500,
+    "fields": {
+      "first_page": 77,
+      "last_page": 83,
+      "title": "Juz 3 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 12
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 501,
+    "fields": {
+      "first_page": 84,
+      "last_page": 89,
+      "title": "Juz 4 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 13
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 502,
+    "fields": {
+      "first_page": 90,
+      "last_page": 98,
+      "title": "Juz 4 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 14
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 503,
+    "fields": {
+      "first_page": 99,
+      "last_page": 104,
+      "title": "Juz 4 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 15
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 504,
+    "fields": {
+      "first_page": 105,
+      "last_page": 111,
+      "title": "Juz 4 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 16
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 505,
+    "fields": {
+      "first_page": 112,
+      "last_page": 119,
+      "title": "Juz 5 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 17
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 506,
+    "fields": {
+      "first_page": 120,
+      "last_page": 125,
+      "title": "Juz 5 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 18
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 507,
+    "fields": {
+      "first_page": 126,
+      "last_page": 132,
+      "title": "Juz 5 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 19
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 508,
+    "fields": {
+      "first_page": 133,
+      "last_page": 139,
+      "title": "Juz 5 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 20
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 509,
+    "fields": {
+      "first_page": 140,
+      "last_page": 147,
+      "title": "Juz 6 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 21
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 510,
+    "fields": {
+      "first_page": 148,
+      "last_page": 153,
+      "title": "Juz 6 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 22
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 511,
+    "fields": {
+      "first_page": 154,
+      "last_page": 160,
+      "title": "Juz 6 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 23
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 512,
+    "fields": {
+      "first_page": 161,
+      "last_page": 167,
+      "title": "Juz 6 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 24
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 513,
+    "fields": {
+      "first_page": 168,
+      "last_page": 174,
+      "title": "Juz 7 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 25
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 514,
+    "fields": {
+      "first_page": 175,
+      "last_page": 181,
+      "title": "Juz 7 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 26
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 515,
+    "fields": {
+      "first_page": 182,
+      "last_page": 188,
+      "title": "Juz 7 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 27
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 516,
+    "fields": {
+      "first_page": 189,
+      "last_page": 195,
+      "title": "Juz 7 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 28
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 517,
+    "fields": {
+      "first_page": 196,
+      "last_page": 200,
+      "title": "Juz 8 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 29
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 518,
+    "fields": {
+      "first_page": 201,
+      "last_page": 206,
+      "title": "Juz 8 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 30
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 519,
+    "fields": {
+      "first_page": 207,
+      "last_page": 214,
+      "title": "Juz 8 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 31
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 520,
+    "fields": {
+      "first_page": 215,
+      "last_page": 223,
+      "title": "Juz 8 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 32
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 521,
+    "fields": {
+      "first_page": 224,
+      "last_page": 229,
+      "title": "Juz 9 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 33
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 522,
+    "fields": {
+      "first_page": 230,
+      "last_page": 236,
+      "title": "Juz 9 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 34
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 523,
+    "fields": {
+      "first_page": 237,
+      "last_page": 243,
+      "title": "Juz 9 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 35
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 524,
+    "fields": {
+      "first_page": 244,
+      "last_page": 251,
+      "title": "Juz 9 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 36
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 525,
+    "fields": {
+      "first_page": 252,
+      "last_page": 258,
+      "title": "Juz 10 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 37
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 526,
+    "fields": {
+      "first_page": 259,
+      "last_page": 265,
+      "title": "Juz 10 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 38
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 527,
+    "fields": {
+      "first_page": 266,
+      "last_page": 271,
+      "title": "Juz 10 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 39
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 528,
+    "fields": {
+      "first_page": 272,
+      "last_page": 279,
+      "title": "Juz 10 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 40
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 529,
+    "fields": {
+      "first_page": 280,
+      "last_page": 285,
+      "title": "Juz 11 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 41
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 530,
+    "fields": {
+      "first_page": 286,
+      "last_page": 293,
+      "title": "Juz 11 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 42
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 531,
+    "fields": {
+      "first_page": 294,
+      "last_page": 299,
+      "title": "Juz 11 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 43
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 532,
+    "fields": {
+      "first_page": 300,
+      "last_page": 307,
+      "title": "Juz 11 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 44
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 533,
+    "fields": {
+      "first_page": 308,
+      "last_page": 313,
+      "title": "Juz 12 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 45
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 534,
+    "fields": {
+      "first_page": 314,
+      "last_page": 320,
+      "title": "Juz 12 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 46
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 535,
+    "fields": {
+      "first_page": 321,
+      "last_page": 328,
+      "title": "Juz 12 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 47
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 536,
+    "fields": {
+      "first_page": 329,
+      "last_page": 335,
+      "title": "Juz 12 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 48
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 537,
+    "fields": {
+      "first_page": 336,
+      "last_page": 341,
+      "title": "Juz 13 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 49
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 538,
+    "fields": {
+      "first_page": 342,
+      "last_page": 349,
+      "title": "Juz 13 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 50
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 539,
+    "fields": {
+      "first_page": 350,
+      "last_page": 355,
+      "title": "Juz 13 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 51
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 540,
+    "fields": {
+      "first_page": 356,
+      "last_page": 363,
+      "title": "Juz 13 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 52
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 541,
+    "fields": {
+      "first_page": 364,
+      "last_page": 369,
+      "title": "Juz 14 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 53
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 542,
+    "fields": {
+      "first_page": 370,
+      "last_page": 376,
+      "title": "Juz 14 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 54
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 543,
+    "fields": {
+      "first_page": 377,
+      "last_page": 383,
+      "title": "Juz 14 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 55
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 544,
+    "fields": {
+      "first_page": 384,
+      "last_page": 391,
+      "title": "Juz 14 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 56
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 545,
+    "fields": {
+      "first_page": 392,
+      "last_page": 397,
+      "title": "Juz 15 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 57
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 546,
+    "fields": {
+      "first_page": 398,
+      "last_page": 404,
+      "title": "Juz 15 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 58
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 547,
+    "fields": {
+      "first_page": 405,
+      "last_page": 411,
+      "title": "Juz 15 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 59
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 548,
+    "fields": {
+      "first_page": 412,
+      "last_page": 419,
+      "title": "Juz 15 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 60
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 549,
+    "fields": {
+      "first_page": 420,
+      "last_page": 425,
+      "title": "Juz 16 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 61
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 550,
+    "fields": {
+      "first_page": 426,
+      "last_page": 433,
+      "title": "Juz 16 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 62
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 551,
+    "fields": {
+      "first_page": 434,
+      "last_page": 439,
+      "title": "Juz 16 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 63
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 552,
+    "fields": {
+      "first_page": 440,
+      "last_page": 447,
+      "title": "Juz 16 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 64
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 553,
+    "fields": {
+      "first_page": 448,
+      "last_page": 453,
+      "title": "Juz 17 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 65
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 554,
+    "fields": {
+      "first_page": 454,
+      "last_page": 460,
+      "title": "Juz 17 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 66
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 555,
+    "fields": {
+      "first_page": 461,
+      "last_page": 467,
+      "title": "Juz 17 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 67
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 556,
+    "fields": {
+      "first_page": 468,
+      "last_page": 475,
+      "title": "Juz 17 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 68
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 557,
+    "fields": {
+      "first_page": 476,
+      "last_page": 481,
+      "title": "Juz 18 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 69
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 558,
+    "fields": {
+      "first_page": 482,
+      "last_page": 488,
+      "title": "Juz 18 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 70
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 559,
+    "fields": {
+      "first_page": 489,
+      "last_page": 495,
+      "title": "Juz 18 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 71
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 560,
+    "fields": {
+      "first_page": 496,
+      "last_page": 503,
+      "title": "Juz 18 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 72
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 561,
+    "fields": {
+      "first_page": 504,
+      "last_page": 509,
+      "title": "Juz 19 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 73
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 562,
+    "fields": {
+      "first_page": 510,
+      "last_page": 516,
+      "title": "Juz 19 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 74
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 563,
+    "fields": {
+      "first_page": 517,
+      "last_page": 523,
+      "title": "Juz 19 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 75
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 564,
+    "fields": {
+      "first_page": 524,
+      "last_page": 531,
+      "title": "Juz 19 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 76
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 565,
+    "fields": {
+      "first_page": 532,
+      "last_page": 536,
+      "title": "Juz 20 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 77
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 566,
+    "fields": {
+      "first_page": 537,
+      "last_page": 543,
+      "title": "Juz 20 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 78
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 567,
+    "fields": {
+      "first_page": 544,
+      "last_page": 549,
+      "title": "Juz 20 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 79
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 568,
+    "fields": {
+      "first_page": 550,
+      "last_page": 557,
+      "title": "Juz 20 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 80
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 569,
+    "fields": {
+      "first_page": 558,
+      "last_page": 564,
+      "title": "Juz 21 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 81
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 570,
+    "fields": {
+      "first_page": 565,
+      "last_page": 571,
+      "title": "Juz 21 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 82
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 571,
+    "fields": {
+      "first_page": 572,
+      "last_page": 579,
+      "title": "Juz 21 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 83
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 572,
+    "fields": {
+      "first_page": 580,
+      "last_page": 585,
+      "title": "Juz 21 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 84
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 573,
+    "fields": {
+      "first_page": 586,
+      "last_page": 591,
+      "title": "Juz 22 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 85
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 574,
+    "fields": {
+      "first_page": 592,
+      "last_page": 597,
+      "title": "Juz 22 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 86
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 575,
+    "fields": {
+      "first_page": 598,
+      "last_page": 604,
+      "title": "Juz 22 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 87
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 576,
+    "fields": {
+      "first_page": 605,
+      "last_page": 611,
+      "title": "Juz 22 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 88
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 577,
+    "fields": {
+      "first_page": 612,
+      "last_page": 618,
+      "title": "Juz 23 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 89
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 578,
+    "fields": {
+      "first_page": 619,
+      "last_page": 624,
+      "title": "Juz 23 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 90
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 579,
+    "fields": {
+      "first_page": 625,
+      "last_page": 631,
+      "title": "Juz 23 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 91
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 580,
+    "fields": {
+      "first_page": 632,
+      "last_page": 639,
+      "title": "Juz 23 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 92
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 581,
+    "fields": {
+      "first_page": 640,
+      "last_page": 645,
+      "title": "Juz 24 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 93
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 582,
+    "fields": {
+      "first_page": 646,
+      "last_page": 651,
+      "title": "Juz 24 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 94
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 583,
+    "fields": {
+      "first_page": 652,
+      "last_page": 658,
+      "title": "Juz 24 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 95
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 584,
+    "fields": {
+      "first_page": 659,
+      "last_page": 665,
+      "title": "Juz 24 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 96
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 585,
+    "fields": {
+      "first_page": 666,
+      "last_page": 672,
+      "title": "Juz 25 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 97
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 586,
+    "fields": {
+      "first_page": 673,
+      "last_page": 678,
+      "title": "Juz 25 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 98
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 587,
+    "fields": {
+      "first_page": 679,
+      "last_page": 686,
+      "title": "Juz 25 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 99
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 588,
+    "fields": {
+      "first_page": 687,
+      "last_page": 695,
+      "title": "Juz 25 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 100
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 589,
+    "fields": {
+      "first_page": 696,
+      "last_page": 701,
+      "title": "Juz 26 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 101
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 590,
+    "fields": {
+      "first_page": 702,
+      "last_page": 711,
+      "title": "Juz 26 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 102
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 591,
+    "fields": {
+      "first_page": 712,
+      "last_page": 716,
+      "title": "Juz 26 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 103
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 592,
+    "fields": {
+      "first_page": 717,
+      "last_page": 725,
+      "title": "Juz 26 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 104
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 593,
+    "fields": {
+      "first_page": 726,
+      "last_page": 732,
+      "title": "Juz 27 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 105
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 594,
+    "fields": {
+      "first_page": 733,
+      "last_page": 739,
+      "title": "Juz 27 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 106
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 595,
+    "fields": {
+      "first_page": 740,
+      "last_page": 746,
+      "title": "Juz 27 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 107
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 596,
+    "fields": {
+      "first_page": 747,
+      "last_page": 755,
+      "title": "Juz 27 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 108
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 597,
+    "fields": {
+      "first_page": 756,
+      "last_page": 762,
+      "title": "Juz 28 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 109
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 598,
+    "fields": {
+      "first_page": 763,
+      "last_page": 768,
+      "title": "Juz 28 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 110
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 599,
+    "fields": {
+      "first_page": 769,
+      "last_page": 776,
+      "title": "Juz 28 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 111
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 600,
+    "fields": {
+      "first_page": 777,
+      "last_page": 785,
+      "title": "Juz 28 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 112
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 601,
+    "fields": {
+      "first_page": 786,
+      "last_page": 792,
+      "title": "Juz 29 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 113
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 602,
+    "fields": {
+      "first_page": 793,
+      "last_page": 800,
+      "title": "Juz 29 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 114
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 603,
+    "fields": {
+      "first_page": 801,
+      "last_page": 809,
+      "title": "Juz 29 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 115
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 604,
+    "fields": {
+      "first_page": 810,
+      "last_page": 817,
+      "title": "Juz 29 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 116
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 605,
+    "fields": {
+      "first_page": 818,
+      "last_page": 824,
+      "title": "Juz 30 Quarter 1",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 117
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 606,
+    "fields": {
+      "first_page": 825,
+      "last_page": 831,
+      "title": "Juz 30 Quarter 2",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 118
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 607,
+    "fields": {
+      "first_page": 832,
+      "last_page": 838,
+      "title": "Juz 30 Quarter 3",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 119
+    }
+  },
+  {
+    "model": "mushaf_segment.mushafsegment",
+    "pk": 608,
+    "fields": {
+      "first_page": 839,
+      "last_page": 847,
+      "title": "Juz 30 Quarter 4",
+      "mushaf": 2,
+      "category": "juz_quarter",
+      "category_position": 120
     }
   }
 ]

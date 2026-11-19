@@ -9,10 +9,10 @@ struct QiraatSettingsSheet: View {
     let onMushafChange: (Int) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedMushafID: Int
-    @Bindable private var tajScan = TajScanStore.shared
-    /// Picker tag for the scanned Taj mushaf (not a separate data mushaf, see onChange).
-    private static let tajScanTag = -MushafID.indoPak.rawValue
+    @State private var layout: MushafLayout
+    @State private var isLayoutChooserOpen = false
+    @State private var offersDownloadAfterChooser = false
+    @State private var isScanDownloadOpen = false
 
     init(
         mushafID: Int,
@@ -28,27 +28,28 @@ struct QiraatSettingsSheet: View {
         self._isTajweedMarkingEnabled = isTajweedMarkingEnabled
         self.onMarkAppearanceChanged = onMarkAppearanceChanged
         self.onMushafChange = onMushafChange
-        let showsTaj = mushafID == MushafID.indoPak.rawValue && TajScanStore.shared.isEnabled && TajScanStore.shared.isAvailable
-        self._selectedMushafID = State(initialValue: showsTaj ? Self.tajScanTag : mushafID)
+        self._layout = State(initialValue: MushafLayout.current(mushafID: mushafID))
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Mushaf") {
-                    Picker("Layout", selection: $selectedMushafID) {
-                        Text("13 Liner IndoPak").tag(MushafID.indoPak.rawValue)
-                        if tajScan.isAvailable {
-                            Text("13 Liner Taj (scanned)").tag(Self.tajScanTag)
+                    Button {
+                        isLayoutChooserOpen = true
+                    } label: {
+                        LabeledContent("Layout") {
+                            HStack(spacing: 6) {
+                                Text(layout.title)
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
-                        Text("15 Liner Uthmani").tag(MushafID.uthmani.rawValue)
                     }
-                    .onChange(of: selectedMushafID) { _, newValue in
-                        // The Taj scan shows the IndoPak words over the printed pages, so it runs on
-                        // the IndoPak mushaf (marks, decks and page numbers carry over).
-                        let isTaj = newValue == Self.tajScanTag
-                        tajScan.isEnabled = isTaj
-                        onMushafChange(isTaj ? MushafID.indoPak.rawValue : newValue)
+                    .tint(.primary)
+                    if let scan = layout.scan, scan.edition.baseURL != nil {
+                        scanDownloadRow(scan)
                     }
                 }
                 Section("Appearance") {
@@ -74,14 +75,52 @@ struct QiraatSettingsSheet: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $isLayoutChooserOpen, onDismiss: {
+                // offer the whole mushaf up front so big page jumps never wait on a download
+                if offersDownloadAfterChooser { isScanDownloadOpen = true }
+                offersDownloadAfterChooser = false
+            }) {
+                MushafOnboardingView(initial: layout, isFirstLaunch: false) { chosen in
+                    layout = chosen
+                    chosen.applyScans()
+                    onMushafChange(chosen.mushaf.rawValue)
+                    offersDownloadAfterChooser = chosen.needsFullDownload
+                    isLayoutChooserOpen = false
+                }
+            }
+            .sheet(isPresented: $isScanDownloadOpen) {
+                if let scan = layout.scan {
+                    ScanDownloadSheet(store: scan)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
             .onChange(of: mushafID) { _, newValue in
-                if newValue == MushafID.indoPak.rawValue && tajScan.isEnabled { return }
-                selectedMushafID = newValue
+                layout = MushafLayout.current(mushafID: newValue)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func scanDownloadRow(_ scan: ScanStore) -> some View {
+        if scan.isFullyDownloaded {
+            Label("Downloaded for offline reading", systemImage: "checkmark.circle")
+                .foregroundStyle(.secondary)
+        } else {
+            Button {
+                isScanDownloadOpen = true
+            } label: {
+                if scan.isDownloadingAll {
+                    LabeledContent("Downloading pages") {
+                        Text("\(scan.downloadedPageCount) / \(scan.edition.pageCount)")
+                            .monospacedDigit()
+                    }
+                } else {
+                    Label("Download whole mushaf", systemImage: "arrow.down.circle")
+                }
             }
         }
     }

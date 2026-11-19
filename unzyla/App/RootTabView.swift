@@ -12,6 +12,8 @@ struct RootTabView: View {
     @State private var recorder = DeckAudioRecorder.shared
     @Bindable private var reviewPlayer = DeckRecordingPlayer.shared
     @State private var showMushafOnboarding = PreferencesStore.shared.needsMushafOnboarding
+    @State private var onboardingScanToDownload: ScanStore?
+    @State private var showOnboardingScanDownload = false
     @Bindable private var inviteHandler = DeckInviteHandler.shared
 
     var body: some View {
@@ -69,7 +71,7 @@ struct RootTabView: View {
                             }
                             .tag(2)
 
-                            JournalTabView(auth: auth)
+                            JournalTabView(auth: auth, focusRecordingID: $reciteVM.journalFocusRecordingID)
                             .tabItem {
                                 Label("Journal", systemImage: "book.pages")
                             }
@@ -95,9 +97,18 @@ struct RootTabView: View {
                         }
                     }
                 }
-                .fullScreenCover(isPresented: $showMushafOnboarding) {
-                    MushafOnboardingView { mushafID in
-                        await finishMushafOnboarding(mushafID)
+                .fullScreenCover(isPresented: $showMushafOnboarding, onDismiss: {
+                    if let scan = onboardingScanToDownload, scan.edition.baseURL != nil, !scan.isFullyDownloaded {
+                        showOnboardingScanDownload = true
+                    }
+                }) {
+                    MushafOnboardingView { layout in
+                        await finishMushafOnboarding(layout)
+                    }
+                }
+                .sheet(isPresented: $showOnboardingScanDownload) {
+                    if let scan = onboardingScanToDownload {
+                        ScanDownloadSheet(store: scan)
                     }
                 }
             }
@@ -207,7 +218,10 @@ struct RootTabView: View {
         .accessibilityLabel("Stop recording")
     }
 
-    private func finishMushafOnboarding(_ mushafID: Int) async {
+    private func finishMushafOnboarding(_ layout: MushafLayout) async {
+        let mushafID = layout.mushaf.rawValue
+        layout.applyScans()
+        onboardingScanToDownload = layout.needsFullDownload ? layout.scan : nil
         PreferencesStore.shared.chooseMushaf(mushafID)
         if reciteVM.mushafID != mushafID {
             await reciteVM.setMushafID(mushafID)

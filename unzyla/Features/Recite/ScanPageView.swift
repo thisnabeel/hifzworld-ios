@@ -3,14 +3,18 @@ import UIKit
 
 /// Draws a scanned mushaf page with the app's word states (paint, marks, highlights) filled into
 /// its word tiles, and turns taps on a tile into the same word taps the rendered page sends.
-struct TajScanPageView: View {
-    let scan: TajScanPage
+struct ScanPageView: View {
+    let store: ScanStore
+    let scan: ScanPage
     let page: MushafPage
     let isDarkMode: Bool
     let activeWordID: Int?
     let paintedWords: [Int: WordPaintStyle]
     let arePaintedWordsVisible: Bool
     let isPaintInverted: Bool
+    /// Handhold mode: words outside `ayahPromptVisibleWordIDs` are covered with solid blocks.
+    var isAyahPromptMode = false
+    var ayahPromptVisibleWordIDs: Set<Int> = []
     let sessionMarks: [Int: MistakeMarkType]
     let areSessionMarksVisible: Bool
     let isSessionMarksInverted: Bool
@@ -57,8 +61,8 @@ struct TajScanPageView: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
         .task(id: page.position) {
-            await TajScanStore.shared.loadSavedLayout(for: page.position)
-            await TajScanStore.shared.prefetch(around: page.position)
+            await store.loadSavedLayout(for: page.position)
+            await store.prefetch(around: page.position)
         }
     }
 
@@ -79,7 +83,7 @@ struct TajScanPageView: View {
     }
 
     /// Tiles are stored relative to the mushaf frame; place them via the frame's spot in the image.
-    private func rect(for tile: TajScanTile, size: CGSize) -> CGRect {
+    private func rect(for tile: ScanTile, size: CGSize) -> CGRect {
         let f = scan.frame
         return CGRect(
             x: (f.x + tile.x * f.width) * size.width,
@@ -91,6 +95,7 @@ struct TajScanPageView: View {
 
     private func drawTiles(in context: inout GraphicsContext, size: CGSize) {
         let highlightBlend: GraphicsContext.BlendMode = isDarkMode ? .normal : .multiply
+        let words = isAyahPromptMode ? wordsByID : [:]
         for tile in scan.tiles {
             let r = rect(for: tile, size: size)
             if let surah = tile.surah {
@@ -105,6 +110,11 @@ struct TajScanPageView: View {
             let ids = tile.ids
             let wordID = ids.first ?? -1
             let paint = paintedWords[wordID]
+
+            if isAyahPromptMode, isPromptHidden(tile, words: words) {
+                context.fill(Path(r), with: .color(inkColor))
+                continue
+            }
 
             if areSessionMarksVisible && isSessionMarksInverted && !sessionMarks.isEmpty {
                 if sessionMarks[wordID] == nil && paint == nil {
@@ -143,8 +153,42 @@ struct TajScanPageView: View {
         }
     }
 
+    /// Same rule as the rendered page: verse circles stay visible, everything else needs a cue or reveal.
+    private func isPromptHidden(_ tile: ScanTile, words: [Int: MushafWord]) -> Bool {
+        guard let wordID = tile.ids.first else { return false }
+        if ayahPromptVisibleWordIDs.contains(wordID) { return false }
+        let word = words[wordID] ?? tile.words?.first?.mushafWord
+        if let word, MushafWordVerse.isAyahEndingToken(word, mushafID: store.edition.mushafID) {
+            return false
+        }
+        return true
+    }
+
+    /// The tile under the finger, or else the nearest tile on the same printed line,
+    /// so taps in the gaps between words still land on the intended word.
+    private func tile(at point: CGPoint, size: CGSize) -> ScanTile? {
+        let candidates = scan.tiles.filter { $0.surah == nil }
+        if let hit = scan.tiles.first(where: { rect(for: $0, size: size).contains(point) }) {
+            return hit
+        }
+        let sameRow = candidates.filter {
+            let r = rect(for: $0, size: size)
+            return point.y >= r.minY && point.y <= r.maxY
+        }
+        return sameRow.min { a, b in
+            horizontalDistance(from: point.x, to: rect(for: a, size: size))
+                < horizontalDistance(from: point.x, to: rect(for: b, size: size))
+        }
+    }
+
+    private func horizontalDistance(from x: CGFloat, to rect: CGRect) -> CGFloat {
+        if x < rect.minX { return rect.minX - x }
+        if x > rect.maxX { return x - rect.maxX }
+        return 0
+    }
+
     private func handleTap(at point: CGPoint, size: CGSize) {
-        guard let tile = scan.tiles.first(where: { rect(for: $0, size: size).contains(point) }) else { return }
+        guard let tile = tile(at: point, size: size) else { return }
         if let otherPage = tile.page, let word = tile.words?.first?.mushafWord {
             if let onWordTapOnPage { onWordTapOnPage(word, otherPage) } else { onWordTap(word) }
             return

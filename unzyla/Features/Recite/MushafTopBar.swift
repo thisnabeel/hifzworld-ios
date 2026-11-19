@@ -17,6 +17,18 @@ struct MushafTopBar: View {
     let onSearch: () -> Void
     let onAddToBundle: () -> Void
     var onToggleBookmark: (() -> Void)?
+    /// Juz containing the current page; shows the "Juz N" button when set.
+    var juz: NavigationSegment?
+    /// Every juz of the mushaf, for switching juz from the popover.
+    var allJuz: [NavigationSegment] = []
+    /// Printed quarter start pages of `juz`; the popover splits the juz evenly when nil.
+    var juzQuarterStartPages: [Int]?
+    var mushafID: Int = PreferencesStore.shared.mushafID
+    var onGoToPage: ((Int) -> Void)?
+    /// iPad: the app's tab switcher sits in this row (centered) instead of the system tab bar's own row.
+    var selectedTab: Binding<Int>?
+
+    @State private var showsJuzPopover = false
 
     private var displayedPageLabel: String {
         pageLabel ?? "\(PrintedPage.display(currentPage))"
@@ -120,6 +132,32 @@ struct MushafTopBar: View {
                 .layoutPriority(-1)
 
                 HStack(spacing: 6) {
+                    if let juz, let number = juz.categoryPosition {
+                        Button {
+                            showsJuzPopover = true
+                        } label: {
+                            Text("Juz \(number)")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.white.opacity(0.14)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Juz \(number), pages in this juz")
+                        .popover(isPresented: $showsJuzPopover, arrowEdge: .top) {
+                            JuzRangePopover(
+                                juz: juz,
+                                allJuz: allJuz,
+                                currentPage: currentPage,
+                                mushafID: mushafID,
+                                printedQuarterStartPages: juzQuarterStartPages,
+                                onGoToPage: { onGoToPage?($0) }
+                            )
+                            .presentationCompactAdaptation(.popover)
+                        }
+                    }
+
                     Text("Pg. \(displayedPageLabel)")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white)
@@ -162,6 +200,11 @@ struct MushafTopBar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(minHeight: 50)
+            .overlay {
+                if let selectedTab {
+                    InlineTabSwitcher(selection: selectedTab)
+                }
+            }
 
             if let coachLabel {
                 ViewingAsBanner(label: coachLabel, onExit: { onExitCoach?() })
@@ -183,5 +226,42 @@ struct MushafTopBar: View {
             .padding(.vertical, 2)
             .background(Capsule().fill(Color.red))
             .accessibilityHidden(true)
+    }
+}
+
+/// Mushaf / Decks / Marks / Journal pill, styled like the iPad floating tab bar, for the top bar row.
+private struct InlineTabSwitcher: View {
+    @Binding var selection: Int
+
+    private static let tabs: [(title: String, tag: Int)] = [
+        ("Mushaf", 0), ("Decks", 1), ("Marks", 2), ("Journal", 3)
+    ]
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Self.tabs, id: \.tag) { tab in
+                let isSelected = selection == tab.tag
+                Button {
+                    selection = tab.tag
+                } label: {
+                    Text(tab.title)
+                        .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? AppTheme.accent : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background {
+                            if isSelected {
+                                Capsule().fill(Color.white.opacity(0.14))
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(Color.white.opacity(0.06)))
+        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
     }
 }
